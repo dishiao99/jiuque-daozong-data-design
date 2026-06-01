@@ -1,0 +1,1300 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>久雀到综数据口径与开发文档</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7fb;
+      --paper: #ffffff;
+      --ink: #1f2937;
+      --muted: #667085;
+      --line: #d9dee8;
+      --soft: #eef2f7;
+      --soft-2: #f8fafc;
+      --brand: #ff5a1f;
+      --brand-2: #2563eb;
+      --ok: #129c63;
+      --warn: #b45309;
+      --risk: #dc2626;
+      --radius: 8px;
+      --shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.62;
+    }
+
+    a { color: var(--brand-2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #1f2937 0%, #374151 54%, #ff6a2a 100%);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 34px 38px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero h1 {
+      margin: 0 0 12px;
+      font-size: 34px;
+      letter-spacing: 0;
+      line-height: 1.2;
+    }
+
+    .hero p { margin: 0; color: rgba(255,255,255,.86); }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 13px;
+      font-weight: 650;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.25);
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 22px;
+      margin-top: 22px;
+      align-items: start;
+    }
+
+    .toc {
+      position: sticky;
+      top: 18px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+    }
+
+    .toc h2 {
+      font-size: 15px;
+      margin: 0 0 10px;
+    }
+
+    .toc a {
+      display: block;
+      padding: 7px 8px;
+      border-radius: 6px;
+      color: #334155;
+      font-size: 14px;
+    }
+
+    .toc a:hover {
+      background: #f1f5f9;
+      text-decoration: none;
+    }
+
+    main {
+      display: grid;
+      gap: 18px;
+    }
+
+    section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 23px;
+      line-height: 1.3;
+    }
+
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 18px;
+      line-height: 1.35;
+    }
+
+    h4 {
+      margin: 18px 0 8px;
+      font-size: 15px;
+      color: #111827;
+    }
+
+    p { margin: 8px 0 12px; }
+
+    .lead {
+      font-size: 16px;
+      color: #334155;
+    }
+
+    .callout {
+      border-left: 4px solid var(--brand);
+      background: #fff7ed;
+      padding: 12px 14px;
+      border-radius: 6px;
+      color: #7c2d12;
+      margin: 14px 0;
+    }
+
+    .callout.blue {
+      border-left-color: var(--brand-2);
+      background: #eff6ff;
+      color: #1e3a8a;
+    }
+
+    .callout.warn {
+      border-left-color: var(--warn);
+      background: #fffbeb;
+      color: #78350f;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 14px 0;
+    }
+
+    .metric-card {
+      background: var(--soft-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      min-height: 118px;
+    }
+
+    .metric-card strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1.1;
+      margin-top: 6px;
+      color: #111827;
+    }
+
+    .metric-card span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px;
+      font-size: 13px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 9px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #f1f5f9;
+      color: #111827;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    tr:nth-child(even) td { background: #fbfdff; }
+
+    code {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 5px;
+      padding: 1px 5px;
+      color: #0f172a;
+      font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+      font-size: 12px;
+    }
+
+    pre {
+      background: #0f172a;
+      color: #dbeafe;
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.55;
+      margin: 12px 0 18px;
+    }
+
+    pre code {
+      background: transparent;
+      border: none;
+      color: inherit;
+      padding: 0;
+    }
+
+    .figure-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 14px;
+    }
+
+    figure {
+      margin: 0;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .shot {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      background: #e5e7eb;
+      overflow: hidden;
+      cursor: zoom-in;
+    }
+
+    .shot img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .shot.demo-shot {
+      aspect-ratio: auto;
+      background: #fff;
+    }
+
+    .shot.demo-shot img {
+      height: auto;
+      object-fit: contain;
+    }
+
+    .marker {
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: #dc2626;
+      color: #fff;
+      border: 2px solid #fff;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, .25);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .demo-shot::before {
+      content: "编号标记用于口径确认";
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      z-index: 2;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, .78);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 10px;
+      pointer-events: none;
+    }
+
+    .shot.has-image::after {
+      content: "点击预览大图";
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, .78);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 10px;
+      opacity: 0;
+      transition: opacity .16s ease;
+      pointer-events: none;
+    }
+
+    .shot.has-image:hover::after,
+    .shot.has-image:focus-visible::after {
+      opacity: 1;
+    }
+
+    .shot:focus-visible {
+      outline: 3px solid rgba(37,99,235,.45);
+      outline-offset: -3px;
+    }
+
+    .shot.has-image .placeholder {
+      display: none;
+    }
+
+    .placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 22px;
+      background:
+        linear-gradient(135deg, rgba(37,99,235,.14), rgba(255,90,31,.18)),
+        repeating-linear-gradient(45deg, rgba(15,23,42,.06) 0, rgba(15,23,42,.06) 10px, transparent 10px, transparent 20px);
+      text-align: center;
+      color: #1f2937;
+    }
+
+    .placeholder b {
+      font-size: 26px;
+    }
+
+    .placeholder small {
+      color: #475569;
+      max-width: 440px;
+    }
+
+    figcaption {
+      padding: 12px 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    figcaption b { display: block; margin-bottom: 4px; }
+    figcaption span { color: var(--muted); font-size: 13px; }
+
+    body.modal-open { overflow: hidden; }
+
+    .image-preview[hidden] { display: none; }
+
+    .image-preview {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      background: rgba(15, 23, 42, .82);
+      padding: 28px;
+    }
+
+    .preview-panel {
+      width: min(1400px, 96vw);
+      max-height: 92vh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      background: #0f172a;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 12px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.35);
+      overflow: hidden;
+    }
+
+    .preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      color: #fff;
+      border-bottom: 1px solid rgba(255,255,255,.14);
+    }
+
+    .preview-head strong {
+      font-size: 15px;
+      line-height: 1.4;
+    }
+
+    .preview-close {
+      width: 34px;
+      height: 34px;
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 8px;
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .preview-close:hover { background: rgba(255,255,255,.18); }
+
+    .preview-body {
+      min-height: 0;
+      padding: 14px;
+      display: grid;
+      place-items: center;
+    }
+
+    .preview-body img {
+      max-width: 100%;
+      max-height: calc(92vh - 84px);
+      object-fit: contain;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin: 10px 0;
+    }
+
+    .tag {
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #334155;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .tag.ok { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
+    .tag.warn { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+    .tag.risk { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .step {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      min-height: 120px;
+    }
+
+    .step b {
+      display: block;
+      color: #111827;
+      margin-bottom: 6px;
+    }
+
+    .step span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .footer {
+      color: var(--muted);
+      text-align: center;
+      padding: 20px 0 6px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .toc { position: static; }
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .figure-grid { grid-template-columns: 1fr; }
+      .two-col { grid-template-columns: 1fr; }
+      .pipeline { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      body { background: #fff; }
+      .shell { max-width: none; padding: 0; }
+      .toc { display: none; }
+      .layout { display: block; }
+      section, .hero { break-inside: avoid; box-shadow: none; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="hero">
+      <h1>久雀到综数据口径与开发文档</h1>
+      <p>基于美团经营宝、抖音来客后台截图与 9 个 Excel 样本，整理下载入口、字段口径、demo 指标映射、入库模型和开发拆分。</p>
+      <div class="hero-meta">
+        <span class="pill">客户：久雀</span>
+        <span class="pill">业务线：到综 / 棋牌茶楼</span>
+        <span class="pill">日期：2026-05-29</span>
+        <span class="pill">样本：9 个 Excel</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <nav class="toc">
+        <h2>目录</h2>
+        <a href="#summary">0. 结论</a>
+        <a href="#sources">1. 入口总表</a>
+        <a href="#figures">2. 图文入口</a>
+        <a href="#mapping">3. Demo 对应关系</a>
+        <a href="#schema">4. 入库模型</a>
+        <a href="#parser">5. Parser 设计</a>
+        <a href="#queries">6. Demo 查询</a>
+        <a href="#worker">7. Worker 隔离</a>
+        <a href="#phases">8. 开发任务</a>
+        <a href="#gaps">9. 仍需补充</a>
+      </nav>
+
+      <main>
+        <section id="summary">
+          <h2>0. 结论</h2>
+          <p class="lead">本批样本已经足够启动一期 parser 和数据表设计。美团经营宝侧可以覆盖门店客流、商品访问、商品交易、评价汇总、评价明细、榜单；抖音来客侧可以覆盖交易、商品、评价明细。</p>
+          <div class="cards">
+            <div class="metric-card"><span>美团/点评入口</span><strong>6</strong><span>评价、商品、交易、客流、榜单</span></div>
+            <div class="metric-card"><span>抖音入口</span><strong>3</strong><span>评价、交易、商品</span></div>
+            <div class="metric-card"><span>Excel 样本行数</span><strong>146k+</strong><span>9 个文件合计约 146,033 行</span></div>
+            <div class="metric-card"><span>一期边界</span><strong>平台看板</strong><span>包间、翻台、用户画像放二期</span></div>
+          </div>
+          <div class="callout">
+            一期建议建设“平台 Excel 经营看板”，覆盖 demo 的日常数据跟进、平台数据卡片、部分异常监控。单包间产值、翻台率、私域好友、用户标签、用户列表、设备合规、回本周期，需要二期接小程序/POS/房型/会员/企微/财务数据。
+          </div>
+          <div class="callout blue">
+            表设计按最新口径修正：<code>meituan</code>、<code>dianping</code>、<code>douyin</code> 继续作为平台维度；“到店综合”不新增为平台。新增 <code>business_vertical</code> 业态维度，<code>dining</code> 表示到店餐饮，<code>general</code> 表示到店综合。
+          </div>
+          <div class="callout warn">
+            本 HTML 已把 9 张入口截图和 5 张 demo 页面截图放入 <code>docs/assets/jiuque-daozong/</code>，页面打开后会直接显示真实图片；如果后续截图更新，只需要覆盖 assets 目录下对应图片。
+          </div>
+        </section>
+
+        <section id="sources">
+          <h2>1. 入口与样本总表</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>图号</th>
+                <th>平台</th>
+                <th>后台入口</th>
+                <th>下载动作</th>
+                <th>Excel 样本</th>
+                <th>行数</th>
+                <th>粒度</th>
+                <th>artifact_type</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Image #1</td><td>美团经营宝</td><td>经营参谋 &gt; 评价分析 &gt; 评价概览</td><td>下载明细表格</td><td><code>评价数据-20260526-20260528-282358728-1780037217695339.xlsx</code></td><td>5,061</td><td>日期 x 门店</td><td><code>meituan_general_review_stats_daily</code></td></tr>
+              <tr><td>Image #2</td><td>美团经营宝</td><td>评价管理 &gt; 门店评价 &gt; 评价明细</td><td>下载评论</td><td><code>门店评价-2823587281780037356972.xlsx</code></td><td>279</td><td>评价明细</td><td><code>meituan_general_review_comments</code></td></tr>
+              <tr><td>Image #3</td><td>美团经营宝</td><td>经营参谋 &gt; 商品分析</td><td>下载明细</td><td><code>商品分析-20260526-20260528-282358728-1780037485558215.xlsx</code></td><td>41,655</td><td>日期 x 门店 x 商品</td><td><code>meituan_general_product_traffic</code></td></tr>
+              <tr><td>Image #4</td><td>美团经营宝</td><td>经营参谋 &gt; 交易分析</td><td>下载明细表格</td><td><code>商品交易数据-20260526-20260528-282358728-1780037645844689.xlsx</code></td><td>16,962</td><td>日期 x 门店 x 商品</td><td><code>meituan_general_product_transaction</code></td></tr>
+              <tr><td>Image #5</td><td>美团经营宝</td><td>经营参谋 &gt; 客流分析 &gt; 客流概览</td><td>下载明细表格</td><td><code>客流数据-20260522-20260528-282358728-1780037925110274.xlsx</code></td><td>11,809</td><td>日期 x 门店</td><td><code>meituan_general_store_traffic</code></td></tr>
+              <tr><td>Image #6</td><td>美团经营宝</td><td>经营参谋 &gt; 榜单分析</td><td>导出榜单明细</td><td><code>榜单数据_仅展示上榜门店-20260526-20260528-282358728-178003805511437.xlsx</code></td><td>26,421</td><td>日期 x 门店 x 榜单</td><td><code>meituan_general_ranking</code></td></tr>
+              <tr><td>Image #7</td><td>抖音来客</td><td>店铺管理 &gt; 评价管理</td><td>右上角导出，弹窗选择门店和评价时间</td><td><code>门店评价_全部门店_2026_05_26-2026_05_28.xlsx</code></td><td>802</td><td>评价明细</td><td><code>douyin_general_review</code></td></tr>
+              <tr><td>Image #8</td><td>抖音来客</td><td>报表集市 &gt; 报表下载 &gt; 交易</td><td>交易 tab 导出，汇总方式选“按日”</td><td><code>2026_05_28_交易 (1).xlsx</code></td><td>16,820</td><td>日期 x 门店 x 商品 x 交易体裁</td><td><code>douyin_general_transaction</code></td></tr>
+              <tr><td>Image #9</td><td>抖音来客</td><td>报表集市 &gt; 报表下载 &gt; 商品</td><td>商品 tab 导出，汇总方式选“按日”</td><td><code>2026_05_28_商品 (1).xlsx</code></td><td>27,224</td><td>日期 x 商品 x 投放渠道</td><td><code>douyin_general_product</code></td></tr>
+            </tbody>
+          </table>
+          <div class="callout blue">
+            抖音交易和商品后台支持“按日”汇总。到综 demo 按日展示时，RPA 必须在报表集市选择“按日”后导出；如果文件表头仍出现 <code>周</code>，应判定为导出配置错误或历史样本。
+          </div>
+        </section>
+
+        <section id="figures">
+          <h2>2. 图文入口说明</h2>
+          <div class="figure-grid">
+            <figure>
+              <div class="shot">
+                <img src="assets/jiuque-daozong/image-1.png" alt="Image #1 美团评价分析汇总" onload="this.parentElement.classList.add('has-image')" onerror="this.remove()">
+                <div class="placeholder"><b>Image #1</b><small>美团经营宝 &gt; 经营参谋 &gt; 评价分析。右侧下载明细表格。</small></div>
+              </div>
+              <figcaption>
+                <b>美团评价分析汇总</b>
+                <span>字段：日期、平台、省份、城市、点评门店id、门店名称、新增评价数、新增差评数、差评回复率、新增好评数、累计评价数、已拦截违规评价数。</span>
+              </figcaption>
+            </figure>
+
+            <figure>
+              <div class="shot">
+                <img src="assets/jiuque-daozong/image-2.png" alt="Image #2 美团门店评价详情" onload="this.parentElement.classList.add('has-image')" onerror="this.remove()">
+                <div class="placeholder"><b>Image #2</b><small>美团经营宝 &gt; 评价管理 &gt; 门店评价 &gt; 评价明细。右侧下载评论。</small></div>
+              </div>
+              <figcaption>
+                <b>美团门店评价详情</b>
+                <span>字段：评价时间、城市、评价门店、点评门店ID、美团门店ID、用户昵称、星级、评分、评价内容、回复状态、消费后评价。</span>
+              </figcaption>
+            </figure>
+
+            <figure>
+              <div class="shot">
+                <img src="assets/jiuque-daozong/image-3.png" alt="Image #3 美团商品分析" onload="this.parentElement.classList.add('has-image')" onerror="this.remove()">
+                <div class="placeholder"><b>Image #3</b><small>美团经营宝 &gt; 经营参谋 &gt; 商品分析。筛选商品范围、商品类型、服务项目。</small></div>
+              </div>
+              <figcaption>
+                <b>美团商品分析</b>
+                <span>字段：日期、平台、点评门店id、商品ID、商品名称、商品最新售价、商品访问人数、商品下单人数、商品访购率、下单券数、退款券数、下单金额。</span>
+              </figcaption>
+            </figure>
+
+            <figure>
+              <div class="shot">
+                <img src="assets/jiuque-daozong/image-4.png" alt="Image #4 美团交易分析" onload="this.parentElement.classList.add('has-image')" onerror="this.remove()">
+                <div class="placeholder"><b>Image #4</b><small>美团经营宝 &gt; 经营参谋 &gt; 交易分析。右侧下载明细表格。</small></div>
+              </div>
+              <figcaption>
+                <b>美团交易分析</b>
+                <span>字段：下单人数、下单券数、下单金额、核销人数、核销券数、核销金额、退款券数、退款金额。营业额默认用核销金额。</span>
+              </figcaption>
+            </figure>
+
+            <figure>
+              <div class="shot">
+                <img src="assets/jiuque-daozong/image-5.png" alt="Image #5 美团客流分析" onload="this.parentElement.classList.add('has-image')" onerror="this.remove()">
+                <div class="placeholder"><b>Image #5</b><small>美团经营宝 &gt; 经营参谋 &gt; 客流分析 &gt; 客流概览。右侧下载明细表格。</small></div>
+              </div>
+              <figcaption>
+                <b>美团客流分析</b>
+                <span>字段：曝光人数、曝光次数、访问人数、访问次数、曝光访问转化率、意向转化人数、意向转化率、下单人数、留资人数、收藏、打卡。</span>
+              </figcaption>
+            </figure>
+
+            <figure>
+              <div class="shot">
+                <img src="assets/jiuque-daozong/image-6.png" alt="Image #6 美团榜单分析" onload="this.parentElement.classList.add('has-image')" onerror="this.remove()">
+                <div class="placeholder"><b>Image #6</b><small>美团经营宝 &gt; 经营参谋 &gt; 榜单分析。右侧导出榜单明细。</small></div>
+              </div>
+              <figcaption>
+                <b>美团榜单分析</b>
+                <span>字段：榜单名称、榜单一级/二级分类、榜单评选城市、城市排名、行政区排名、商圈排名。排名支持数字和“未上榜”。</span>
+              </figcaption>
+            </figure>
+
+            <figure>
+              <div class="shot">
+                <img src="assets/jiuque-daozong/image-7.png" alt="Image #7 抖音评价" onload="this.parentElement.classList.add('has-image')" onerror="this.remove()">
+                <div class="placeholder"><b>Image #7</b><small>抖音来客 &gt; 店铺管理 &gt; 评价管理。右上角导出后弹窗选择门店和评价时间。</small></div>
+              </div>
+              <figcaption>
+                <b>抖音评价明细</b>
+                <span>入口：评价管理列表右上角“导出”，弹窗按省市、门店和评价时间导出。字段：门店名称、门店ID、用户昵称、用户等级、评价时间、推荐等级、文本内容、图片/视频内容、评价来源、商品ID、商家回复。</span>
+              </figcaption>
+            </figure>
+
+            <figure>
+              <div class="shot">
+                <img src="assets/jiuque-daozong/image-8.png" alt="Image #8 抖音交易报表" onload="this.parentElement.classList.add('has-image')" onerror="this.remove()">
+                <div class="placeholder"><b>Image #8</b><small>抖音来客 &gt; 报表集市 &gt; 报表下载 &gt; 交易。维度勾选区域、省份、城市、门店、商品、交易体裁。</small></div>
+              </div>
+              <figcaption>
+                <b>抖音交易报表</b>
+                <span>目标按日字段：日期、门店ID、商品ID、交易体裁、核销金额/券数/人数/客单价、意向成交金额/券数/人数/客单价、意向退款金额/券数/人数。</span>
+              </figcaption>
+            </figure>
+
+            <figure>
+              <div class="shot">
+                <img src="assets/jiuque-daozong/image-9.png" alt="Image #9 抖音商品报表" onload="this.parentElement.classList.add('has-image')" onerror="this.remove()">
+                <div class="placeholder"><b>Image #9</b><small>抖音来客 &gt; 报表集市 &gt; 报表下载 &gt; 商品。指标覆盖商品信息、流量、交易、直播、短视频、达人。</small></div>
+              </div>
+              <figcaption>
+                <b>抖音商品报表</b>
+                <span>目标按日字段：日期、商品ID、投放渠道、商品类型、划线价、售价、适用门店数、商品曝光/访问/成交/核销/退款、新客、直播、视频、达人、品类。</span>
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section id="mapping">
+          <h2>3. Demo 指标对应关系</h2>
+          <h3>3.1 日常数据跟进</h3>
+          <table>
+            <thead><tr><th>demo 指标</th><th>一期口径</th><th>数据源</th><th>计算方式</th></tr></thead>
+            <tbody>
+              <tr><td>营业额</td><td>默认核销金额，另保留成交 GMV</td><td>美团交易、抖音交易</td><td><code>sum(核销金额)</code>；GMV 用 <code>sum(下单金额 / 意向成交金额)</code></td></tr>
+              <tr><td>订单量</td><td>默认核销券数，另保留下单券数</td><td>美团交易、抖音交易</td><td><code>sum(核销券数)</code>；下单口径用 <code>sum(下单券数 / 意向成交券数)</code></td></tr>
+              <tr><td>单均</td><td>核销营业额 / 核销券数</td><td>美团交易、抖音交易</td><td>查询层派生</td></tr>
+              <tr><td>总好评数</td><td>新增好评数 + 明细星级高分聚合</td><td>美团评价汇总、评价明细、抖音评价</td><td>美团优先用汇总；抖音用 <code>推荐等级 &gt;= 4星</code></td></tr>
+              <tr><td>单包间产值</td><td>一期不可由平台 Excel 得到</td><td>二期小程序/POS/房型</td><td><code>营业额 / 可售包间数</code></td></tr>
+              <tr><td>翻台率</td><td>一期不可由平台 Excel 得到</td><td>二期订单/房态</td><td><code>场次数 / 可售包间数</code></td></tr>
+              <tr><td>私域好友数</td><td>一期不可由平台 Excel 得到</td><td>二期企微/小程序</td><td>外部累计值</td></tr>
+            </tbody>
+          </table>
+
+          <h3>3.2 平台卡片与异常监控</h3>
+          <div class="two-col">
+            <div>
+              <h4>平台卡片来源优先级</h4>
+              <div class="tag-row">
+                <span class="tag ok">美团客流：曝光/访问/意向/下单</span>
+                <span class="tag ok">美团交易：营业额/订单/退款</span>
+                <span class="tag ok">评价汇总 + 明细</span>
+                <span class="tag ok">榜单明细</span>
+                <span class="tag warn">抖音商品缺单店维度</span>
+                <span class="tag warn">经营分本批无字段</span>
+              </div>
+            </div>
+            <div>
+              <h4>一期可启用告警</h4>
+              <div class="tag-row">
+                <span class="tag ok">营业额环比/同比</span>
+                <span class="tag ok">曝光下滑</span>
+                <span class="tag ok">访问转化下降</span>
+                <span class="tag ok">退款异常</span>
+                <span class="tag ok">差评率</span>
+                <span class="tag ok">评价未回复</span>
+                <span class="tag ok">榜单下降</span>
+                <span class="tag risk">翻台/包间待二期</span>
+              </div>
+            </div>
+          </div>
+
+          <h3>3.3 /daily demo 字段级口径确认</h3>
+          <p>下面两张图来自 <code>https://jiuque.jingyingcanmou.cn/daily</code> 当前 demo 页面，用于和客户确认页面字段、Excel 来源和一期/二期边界。点击图片可预览大图。</p>
+
+          <figure>
+            <div class="shot demo-shot has-image">
+              <img src="assets/jiuque-daozong/demo-daily-top.png" alt="久雀 /daily 顶部筛选与总数据">
+              <span class="marker" style="left: 13%; top: 16%;">A1</span>
+              <span class="marker" style="left: 56%; top: 16%;">A2</span>
+              <span class="marker" style="left: 11%; top: 29%;">A3</span>
+              <span class="marker" style="left: 31%; top: 36%;">A4</span>
+              <span class="marker" style="left: 51%; top: 36%;">A5</span>
+              <span class="marker" style="left: 71%; top: 36%;">A6</span>
+              <span class="marker" style="left: 12%; top: 63%;">A7</span>
+              <span class="marker" style="left: 32%; top: 63%;">A8</span>
+              <span class="marker" style="left: 51%; top: 63%;">A9</span>
+            </div>
+            <figcaption>
+              <b>图 A：顶部筛选与总数据</b>
+              <span>业务部、区域、门店、日期、同比环比以及总数据卡片的字段口径。</span>
+            </figcaption>
+          </figure>
+
+          <table>
+            <thead><tr><th>标记</th><th>demo 模块/字段</th><th>一期数据来源</th><th>口径与计算</th><th>需要客户确认</th></tr></thead>
+            <tbody>
+              <tr><td>A1</td><td>业务部、区域、门店筛选</td><td><code>store_business_departments</code>、<code>store_operation_regions</code>、<code>store_region_assignments</code></td><td>先按 <code>business_vertical='general'</code> 限定到综门店，再按业务部、区域得到门店集合。</td><td>业务部/区域清单、门店归属、生效日期。</td></tr>
+              <tr><td>A2</td><td>日期、工作日/周末、同比、环比</td><td>各 Excel 的 <code>日期</code>；工作日/周末由日历派生</td><td>日期范围过滤事实表；同比/环比在查询层计算。</td><td>节假日口径；环比取上一周期还是上周同期。</td></tr>
+              <tr><td>A3</td><td>营业额</td><td>美团交易 <code>核销金额</code>；抖音交易 <code>核销金额</code>；小程序/POS 待补</td><td>默认 <code>sum(核销金额)</code>，GMV 另保留下单/意向成交金额。</td><td>展示实收/核销，还是成交 GMV。</td></tr>
+              <tr><td>A4</td><td>订单量</td><td>美团交易 <code>核销券数</code>；抖音交易 <code>核销券数</code></td><td>默认按核销券数；下单口径另保留下单券数/意向成交券数。</td><td>订单量按券数、订单数还是用户数。</td></tr>
+              <tr><td>A5</td><td>单均</td><td>交易数据派生</td><td><code>营业额 / 订单量</code>，默认按核销口径。</td><td>分母是否按核销券数。</td></tr>
+              <tr><td>A6</td><td>单包间产值</td><td>当前 9 个平台 Excel 不提供</td><td>二期需要房型/包间数量、小程序或 POS 订单。</td><td>分母取可售包间数、营业包间数还是实际开台数。</td></tr>
+              <tr><td>A7</td><td>翻台率</td><td>当前 9 个平台 Excel 不提供</td><td>二期需要包间、场次、订单时段数据。</td><td>按包间、房型还是门店营业时长计算。</td></tr>
+              <tr><td>A8</td><td>私域好友数</td><td>当前 9 个平台 Excel 不提供</td><td>二期接企微/小程序会员数据。</td><td>累计好友、净增好友还是可触达用户。</td></tr>
+              <tr><td>A9</td><td>总好评数</td><td>美团评价汇总 <code>新增好评数</code>；抖音评价明细 <code>推荐等级 &gt;= 4星</code></td><td>按门店、日期、平台汇总；美团/点评优先用汇总。</td><td>抖音 4 星是否算好评；中评/差评分界。</td></tr>
+            </tbody>
+          </table>
+
+          <figure>
+            <div class="shot demo-shot has-image">
+              <img src="assets/jiuque-daozong/demo-daily-platforms.png" alt="久雀 /daily 平台数据卡片">
+              <span class="marker" style="left: 12%; top: 24%;">B1</span>
+              <span class="marker" style="left: 12%; top: 44%;">B2</span>
+              <span class="marker" style="left: 12%; top: 58%;">B3</span>
+              <span class="marker" style="left: 12%; top: 75%;">B4</span>
+              <span class="marker" style="left: 12%; top: 91%;">B5</span>
+              <span class="marker" style="left: 38%; top: 24%;">B6</span>
+              <span class="marker" style="left: 38%; top: 34%;">B7</span>
+              <span class="marker" style="left: 38%; top: 48%;">B8</span>
+              <span class="marker" style="left: 38%; top: 64%;">B9</span>
+              <span class="marker" style="left: 38%; top: 83%;">B10</span>
+              <span class="marker" style="left: 64%; top: 32%;">B11</span>
+            </div>
+            <figcaption>
+              <b>图 B：平台数据卡片</b>
+              <span>美团/点评、抖音、小程序三张平台卡片的字段来源和缺口。</span>
+            </figcaption>
+          </figure>
+
+          <table>
+            <thead><tr><th>标记</th><th>demo 模块/字段</th><th>一期数据来源</th><th>口径与计算</th><th>需要客户确认</th></tr></thead>
+            <tbody>
+              <tr><td>B1</td><td>美团/点评：曝光、访问、下单</td><td>美团客流数据</td><td>按日期、门店、平台汇总 <code>曝光人数</code>、<code>访问人数</code>、<code>下单人数</code>。</td><td>卡片合并点评+美团，还是保留平台切换。</td></tr>
+              <tr><td>B2</td><td>美团/点评：牌级、经营评分</td><td>当前 9 个 Excel 不提供</td><td>暂标待接入，可人工维护或补导出入口。</td><td>是否必须一期上线。</td></tr>
+              <tr><td>B3</td><td>美团/点评：评价好/中/差、好评率、星级评分</td><td>美团评价汇总、门店评价详情</td><td>好评/差评优先用汇总；中评用差额或明细星级；星级评分用明细均值或外部评分。</td><td>中评计算方式；星级评分是否接受明细均值。</td></tr>
+              <tr><td>B4</td><td>美团/点评：榜单排名</td><td>美团榜单数据</td><td>默认展示商圈排名，缺失时可降级行政区/城市。</td><td>优先展示商圈、行政区还是城市榜。</td></tr>
+              <tr><td>B5</td><td>美团/点评：营业额、订单量、单均</td><td>美团商品交易数据</td><td>营业额默认核销金额，订单量默认核销券数，单均派生。</td><td>核销金额和下单金额的展示取舍。</td></tr>
+              <tr><td>B6</td><td>抖音：访问人数、下单人数</td><td>抖音商品报表、抖音交易报表</td><td>交易建议用按日交易报表；商品流量如需单店，需要重新导出带门店维度样本。</td><td>下单人数取意向成交人数还是核销人数。</td></tr>
+              <tr><td>B7</td><td>抖音：货架点击人数</td><td>当前样本没有明确同名字段</td><td>候选为商品访问人数或不含商品卡访问人数，需确认后固定。</td><td>货架点击在抖音后台对应哪个指标。</td></tr>
+              <tr><td>B8</td><td>抖音：经营分、评分、评价数</td><td>评价数来自抖音评价明细；经营分无字段；评分可用推荐等级弱口径</td><td>推荐等级均值只能近似评分，不等于平台门店评分。</td><td>经营分导出入口；评分是否接受近似。</td></tr>
+              <tr><td>B9</td><td>抖音：门店页流量来源</td><td>当前交易/商品/评价样本不提供来源占比</td><td>需要补抖音门店流量来源导出或 API。</td><td>推荐/搜索/同城/其他是否必须一期上线。</td></tr>
+              <tr><td>B10</td><td>抖音：成交分析、营业额、订单量、单均</td><td>抖音交易报表</td><td>成交分析可用意向成交；营业额默认核销金额；订单量默认核销券数。</td><td>成交分析展示意向成交还是核销。</td></tr>
+              <tr><td>B11</td><td>小程序全部流量和营业字段</td><td>当前 9 个平台 Excel 不提供</td><td>二期接小程序埋点、订单、投诉、活动点击数据。</td><td>小程序是否纳入一期；若纳入需补样本。</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout warn">
+            自查结论：当前 Excel 不能覆盖 demo 全部字段，小程序、单包间产值、翻台率、私域好友、经营分、牌级、抖音门店页流量来源需要明确标为待接入。美团评价汇总与评价明细已拆成两个 artifact，抖音交易/商品必须按日导出。
+          </div>
+
+          <h3>3.4 /users demo 字段级口径确认</h3>
+          <p><code>/users</code> 页面核心是用户分层和行为分布。当前 9 个平台 Excel 只有聚合交易、商品、评价数据，不包含稳定用户 ID、订单 ID、订单时间、包间、消费时长，因此多数指标不能由一期平台 Excel 严格支撑。</p>
+          <figure>
+            <div class="shot demo-shot has-image">
+              <img src="assets/jiuque-daozong/demo-users.png" alt="久雀 /users 用户分析">
+              <span class="marker" style="left: 18%; top: 22%;">U1</span>
+              <span class="marker" style="left: 61%; top: 25%;">U2</span>
+              <span class="marker" style="left: 15%; top: 55%;">U3</span>
+              <span class="marker" style="left: 40%; top: 55%;">U4</span>
+              <span class="marker" style="left: 65%; top: 55%;">U5</span>
+              <span class="marker" style="left: 17%; top: 82%;">U6</span>
+              <span class="marker" style="left: 52%; top: 82%;">U7</span>
+              <span class="marker" style="left: 39%; top: 10%;">U8</span>
+            </div>
+            <figcaption><b>图 C：用户分析</b><span>用户分层、流失复购、下单周期、消费水平、优惠敏感度、包型和下单时段。</span></figcaption>
+          </figure>
+          <table>
+            <thead><tr><th>标记</th><th>demo 模块/字段</th><th>当前 Excel 支撑度</th><th>一期可用口径</th><th>需要客户确认/补数</th></tr></thead>
+            <tbody>
+              <tr><td>U1</td><td>用户总数、新客、熟客、老客</td><td>弱支撑</td><td>抖音商品有 <code>成交新客数</code>，美团本批无新/熟/老客字段；不建议用评价昵称反推用户。</td><td>是否接受各平台原始用户定义；需订单级匿名用户 ID。</td></tr>
+              <tr><td>U2</td><td>流失人数、流失率、复购人数、复购率</td><td>不支撑</td><td>平台 Excel 无用户历史消费序列，不能严肃计算流失/复购。</td><td>需订单 ID、用户匿名 ID、最近消费日期、历史消费次数。</td></tr>
+              <tr><td>U3</td><td>下单周期</td><td>不支撑</td><td>需要同一用户多次下单间隔，当前只有日/商品/门店聚合。</td><td>需用户级订单流水。</td></tr>
+              <tr><td>U4</td><td>消费水平分布</td><td>部分支撑</td><td>可用门店/商品客单价做门店层粗分；不能得到用户消费水平分布。</td><td>需用户累计消费、单次订单金额。</td></tr>
+              <tr><td>U5</td><td>优惠敏感度</td><td>部分支撑</td><td>可从商品类型、商品名称、售价/划线价、团购/套餐字段做商品层弱分类。</td><td>需订单级优惠、券、原价支付记录。</td></tr>
+              <tr><td>U6</td><td>包型消费偏好</td><td>部分支撑</td><td>可从商品名称解析 <code>特惠/中/大/尊/4H/12H</code> 等标签。</td><td>需标准包型字段，避免靠商品名解析。</td></tr>
+              <tr><td>U7</td><td>下单时段</td><td>不支撑</td><td>当前 Excel 没有小时级下单时间。</td><td>需订单创建时间、预约开始时间、消费开始/结束时间。</td></tr>
+              <tr><td>U8</td><td>工作日/周末、同比、环比筛选</td><td>支撑查询层</td><td>工作日/周末由日历派生；同比/环比由查询层计算。</td><td>节假日是否独立分组。</td></tr>
+            </tbody>
+          </table>
+
+          <h3>3.5 /monitor demo 字段级口径确认</h3>
+          <p><code>/monitor</code> 是规则引擎页：先用经营、流量、评价、榜单、订单/房态、财务、设备、督导等指标生成风险项，再按严重/预警/关注聚合。</p>
+          <figure>
+            <div class="shot demo-shot has-image">
+              <img src="assets/jiuque-daozong/demo-monitor.png" alt="久雀 /monitor 异常监控">
+              <span class="marker" style="left: 15%; top: 12%;">M1</span>
+              <span class="marker" style="left: 13%; top: 28%;">M2</span>
+              <span class="marker" style="left: 26%; top: 34%;">M3</span>
+              <span class="marker" style="left: 55%; top: 28%;">M4</span>
+              <span class="marker" style="left: 76%; top: 31%;">M5</span>
+              <span class="marker" style="left: 13%; top: 47%;">M6</span>
+              <span class="marker" style="left: 55%; top: 65%;">M7</span>
+              <span class="marker" style="left: 55%; top: 82%;">M8</span>
+              <span class="marker" style="left: 13%; top: 63%;">M9</span>
+            </div>
+            <figcaption><b>图 D：异常监控</b><span>风险总览、经营、收入、流量、设备、用户服务、合规、竞争、回本。</span></figcaption>
+          </figure>
+          <table>
+            <thead><tr><th>标记</th><th>demo 模块/字段</th><th>当前 Excel 支撑度</th><th>一期可用口径</th><th>需要客户确认/补数</th></tr></thead>
+            <tbody>
+              <tr><td>M1</td><td>风险总览：总风险项、严重、预警、关注、健康门店占比</td><td>依赖规则结果</td><td>基于下方规则触发结果聚合，不是 Excel 原始字段。</td><td>阈值、风险等级、健康门店定义。</td></tr>
+              <tr><td>M2</td><td>经营业绩：营业额环比、同店增长</td><td>支撑</td><td>美团/抖音交易核销金额按门店和日期范围比较。</td><td>同店增长比较周期和门店范围。</td></tr>
+              <tr><td>M3</td><td>经营业绩：翻台率、包间使用率、单包间产值</td><td>不支撑</td><td>当前平台 Excel 无包间和场次，只能标待接入。</td><td>需房态、包间数、场次、营业时长。</td></tr>
+              <tr><td>M4</td><td>收入核查：退款异常率</td><td>支撑</td><td>美团交易退款金额/券数，抖音意向退款金额/券数。</td><td>阈值按金额、券数还是订单数。</td></tr>
+              <tr><td>M5</td><td>0 元体验订单占比、店主下单订单占比</td><td>不支撑</td><td>当前 Excel 无订单实付明细和下单人身份。</td><td>需订单级支付金额、用户身份、员工/店主标识。</td></tr>
+              <tr><td>M6</td><td>流量：曝光下滑、星级评分、商圈排名/榜单</td><td>部分支撑</td><td>曝光用美团客流/抖音商品；星级用评价明细弱口径；排名用榜单 Excel。</td><td>经营分、牌级当前无导出字段。</td></tr>
+              <tr><td>M7</td><td>用户服务：差评率、评价未回复、客诉响应</td><td>部分支撑</td><td>差评率用评价汇总/明细；评价回复状态可用明细；投诉率和客诉时长需投诉系统。</td><td>投诉和评价是否合并为用户服务风险。</td></tr>
+              <tr><td>M8</td><td>竞争环境：周边竞品、价格敏感度、竞品差评提及</td><td>部分支撑</td><td>商圈排名可用榜单；差评提及竞品可用评价文本 NLP；价格敏感度需竞品价。</td><td>竞品清单和竞品价格来源。</td></tr>
+              <tr><td>M9</td><td>设备、运营执行、合规、回本周期</td><td>不支撑</td><td>只预留规则分类，不纳入一期 Excel 看板。</td><td>需设备档案/工单、督导评分、财务/保险/税务、投资回本数据。</td></tr>
+            </tbody>
+          </table>
+
+          <h3>3.6 /stores/上海徐汇店 demo 字段级口径确认</h3>
+          <p>单店页展示单店订单行为、包型、消费能力、留存、画像标签。当前平台 Excel 能支撑平台交易、商品/套餐、评价、榜单这些单店弱口径；涉及用户、包间、预约、换房、消费时长、留存标签的图，需要二期订单/房态/会员数据。</p>
+          <figure>
+            <div class="shot demo-shot has-image">
+              <img src="assets/jiuque-daozong/demo-store-shanghai-xuhui.png" alt="久雀 /stores/上海徐汇店 单店深度分析">
+              <span class="marker" style="left: 18%; top: 5%;">S1</span>
+              <span class="marker" style="left: 60%; top: 5%;">S2</span>
+              <span class="marker" style="left: 13%; top: 12%;">S3</span>
+              <span class="marker" style="left: 14%; top: 20%;">S4</span>
+              <span class="marker" style="left: 13%; top: 29%;">S5</span>
+              <span class="marker" style="left: 15%; top: 40%;">S6</span>
+              <span class="marker" style="left: 14%; top: 48%;">S7</span>
+              <span class="marker" style="left: 15%; top: 58%;">S8</span>
+              <span class="marker" style="left: 13%; top: 67%;">S9</span>
+              <span class="marker" style="left: 13%; top: 76%;">S10</span>
+              <span class="marker" style="left: 13%; top: 88%;">S11</span>
+              <span class="marker" style="left: 60%; top: 96%;">S12</span>
+            </div>
+            <figcaption><b>图 E：单店深度分析</b><span>单店顶部指标、用户行为、包型、消费能力、留存、标签和运营动作。</span></figcaption>
+          </figure>
+          <table>
+            <thead><tr><th>标记</th><th>demo 模块/字段</th><th>当前 Excel 支撑度</th><th>一期可用口径</th><th>需要客户确认/补数</th></tr></thead>
+            <tbody>
+              <tr><td>S1</td><td>单店筛选与顶部卡片：营业额、客单价</td><td>支撑</td><td>营业额默认核销金额；客单价 <code>核销金额 / 核销券数</code>。</td><td>单店页是否只看选中门店，是否合并平台。</td></tr>
+              <tr><td>S2</td><td>场次数、续单率、单包间产值、翻台率</td><td>不支撑</td><td>当前平台 Excel 无场次、续单、包间。</td><td>需 POS/小程序订单、房态、包间数、续单标识。</td></tr>
+              <tr><td>S3</td><td>消费时段、闲时/高峰、预订习惯、消费时长</td><td>不支撑</td><td>平台 Excel 无小时、预约提前量、消费开始/结束时间。</td><td>需订单创建时间、预约时间、开台/离店时间。</td></tr>
+              <tr><td>S4</td><td>消费渠道偏好</td><td>部分支撑</td><td>美团/点评/抖音可按平台交易金额/券数占比；高德/快手/小程序当前无样本。</td><td>是否合并点评与美团；是否补高德/快手/小程序。</td></tr>
+              <tr><td>S5</td><td>包型偏好、包型趋势、包型 x 时段热力图</td><td>部分支撑</td><td>包型可从商品名称解析；趋势按日期聚合；时段热力图不能做。</td><td>需标准包型、订单时段、房型字段。</td></tr>
+              <tr><td>S6</td><td>不同包型客单价、换房行为</td><td>部分/不支撑</td><td>包型客单价可用商品交易弱算；换房行为不支撑。</td><td>需订单包间、换房事件、前后包型。</td></tr>
+              <tr><td>S7</td><td>消费水平、时段客单价、时长 x 客单价</td><td>部分/不支撑</td><td>消费水平可用订单/商品金额弱分布；时段和时长相关不支撑。</td><td>需订单级金额、时间、消费时长。</td></tr>
+              <tr><td>S8</td><td>价格敏感度、消费能力客群分层</td><td>部分/不支撑</td><td>可用团购/套餐/原价商品弱分类；客群分层需用户累计消费。</td><td>需优惠明细、用户 ID、累计消费。</td></tr>
+              <tr><td>S9</td><td>新老用户、复购率、消费频次、生命周期</td><td>不支撑</td><td>当前 Excel 无用户历史序列。</td><td>需用户匿名 ID、订单历史。</td></tr>
+              <tr><td>S10</td><td>流失用户、沉默用户分析</td><td>不支撑</td><td>当前 Excel 不能识别用户最近一次消费。</td><td>需用户最近消费日期和召回规则。</td></tr>
+              <tr><td>S11</td><td>用户画像标签、筛选命中、用户列表</td><td>不支撑</td><td>只能作为二期标签系统设计，不应一期伪造。</td><td>需会员/订单/渠道/触达授权。</td></tr>
+              <tr><td>S12</td><td>运营动作：推送、企微、导出名单、创建营销活动</td><td>不支撑</td><td>属于营销系统能力，不是平台 Excel 字段。</td><td>需触达系统、权限、合规规则。</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="schema">
+          <h2>4. 入库模型设计</h2>
+          <p>修正原则：平台和业态拆开建模。<code>platform</code> 继续表示数据来源，保持 <code>meituan</code>、<code>dianping</code>、<code>douyin</code>；到店综合通过 <code>business_vertical='general'</code> 表示，不新增综合平台。</p>
+
+          <div class="callout blue">
+            到店餐饮和到店综合不会在同一个实体门店上共存，因此现有事实表唯一键，例如 <code>UNIQUE(store_id, date, platform)</code>，短期保持不变。
+          </div>
+
+          <h3>4.1 新增业态字段</h3>
+          <pre><code>ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining'
+  CHECK (business_vertical IN ('dining', 'general'));
+
+ALTER TABLE platform_connections
+  ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining'
+  CHECK (business_vertical IN ('dining', 'general'));
+
+ALTER TABLE platform_authorizations
+  ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining'
+  CHECK (business_vertical IN ('dining', 'general'));
+
+CREATE INDEX IF NOT EXISTS idx_platform_connections_platform_vertical
+  ON platform_connections(platform, business_vertical, connection_status);</code></pre>
+
+          <h3>4.2 artifact 命名</h3>
+          <div class="callout blue">
+            兼容说明：<code>platform_connections.platform</code>、<code>platform_authorizations.platform</code> 使用英文平台 key；部分既有事实表历史上可能保存中文平台值，例如 <code>product_detail.platform='美团'/'点评'</code>。到综开发时不要新增 <code>meituan_general</code> 这类平台码；如果复用历史表，parser 和查询层需要做 <code>normalize_platform_key</code> 兼容。
+          </div>
+          <p>格式和到餐一致时继续用现有 artifact type，并在 metadata 记录 <code>business_vertical='general'</code>；格式不同则使用带业态的 artifact type。本文 9 个样本先按格式不同处理：</p>
+          <pre><code>meituan_general_review_stats_daily
+meituan_general_review_comments
+meituan_general_product_traffic
+meituan_general_product_transaction
+meituan_general_store_traffic
+meituan_general_ranking
+douyin_general_review
+douyin_general_transaction
+douyin_general_product</code></pre>
+
+          <h3>4.3 复用表与字段落点</h3>
+          <table>
+            <thead><tr><th>样本</th><th>复用目标</th><th>platform key / 事实表取值</th><th>业态</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>美团评价汇总</td><td><code>store_reviews</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>评价数、好评数、差评数、回复率</td></tr>
+              <tr><td>美团评价明细</td><td><code>store_comments</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>无稳定评价 ID 时用内容 hash 生成 <code>platform_comment_id</code></td></tr>
+              <tr><td>美团商品访问</td><td><code>product_detail</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>商品 ID、售价、访问、下单、访购率</td></tr>
+              <tr><td>美团商品交易</td><td><code>product_detail</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>下单、核销、退款按商品粒度保留</td></tr>
+              <tr><td>美团客流</td><td><code>store_traffic</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>曝光、访问、意向、下单、收藏、打卡</td></tr>
+              <tr><td>美团榜单</td><td><code>store_rankings</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>多榜单明细不足字段先保留 raw_data</td></tr>
+              <tr><td>抖音评价</td><td><code>douyin_review</code></td><td><code>douyin</code></td><td><code>general</code></td><td>保留 AI/RPA 回复扩展空间</td></tr>
+              <tr><td>抖音交易</td><td><code>douyin_transactions_detail</code></td><td><code>douyin</code></td><td><code>general</code></td><td>RPA 选择“按日”导出；若文件出现 <code>周</code> 字段则重新导出</td></tr>
+              <tr><td>抖音商品</td><td><code>douyin_product_detail</code></td><td><code>douyin</code></td><td><code>general</code></td><td>缺门店维度时只做品牌/商品层指标</td></tr>
+            </tbody>
+          </table>
+
+          <h3>4.4 表结构处理原则</h3>
+          <div class="callout">
+            本阶段不预先列具体 ALTER。开发计划里先和用户确认数据口径，再做字段对照：能稳定映射到现有字段的，直接写现有表；差异较小的，用现有表兼容；差异明显、会让现有表语义变乱的，再新建业态专表。
+          </div>
+          <div class="callout warn">后续如果确认字段结构差异明显，再新增 <code>in_store_general_store_daily</code>、<code>in_store_general_product_daily</code> 等业态专表。</div>
+
+          <h3>4.5 门店运营组织维度</h3>
+          <p><code>/daily</code> 顶部有业务部、区域、门店三级筛选。这个维度是久雀内部运营组织口径，不属于平台，也不属于业态；建议单独建维表，不要把区域写进交易、客流、评价事实表唯一键。</p>
+          <pre><code>CREATE TABLE IF NOT EXISTS store_business_departments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
+  customer_code VARCHAR(64) NOT NULL DEFAULT 'jiuque',
+  business_vertical VARCHAR(32) NOT NULL DEFAULT 'general'
+    CHECK (business_vertical IN ('dining', 'general')),
+  department_name VARCHAR(100) NOT NULL,
+  department_code VARCHAR(64),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'disabled')),
+  UNIQUE(customer_code, business_vertical, department_name)
+);
+
+CREATE TABLE IF NOT EXISTS store_operation_regions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  department_id UUID NOT NULL REFERENCES store_business_departments(id) ON DELETE CASCADE,
+  parent_region_id UUID REFERENCES store_operation_regions(id) ON DELETE SET NULL,
+  region_name VARCHAR(100) NOT NULL,
+  region_code VARCHAR(64),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'disabled')),
+  UNIQUE(department_id, region_name)
+);
+
+CREATE TABLE IF NOT EXISTS store_region_assignments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  region_id UUID NOT NULL REFERENCES store_operation_regions(id) ON DELETE CASCADE,
+  valid_from DATE NOT NULL DEFAULT CURRENT_DATE,
+  valid_to DATE,
+  is_primary BOOLEAN NOT NULL DEFAULT true,
+  CHECK (valid_to IS NULL OR valid_to >= valid_from),
+  UNIQUE(store_id, region_id, valid_from)
+);</code></pre>
+          <div class="callout blue">查询顺序：先按 <code>business_vertical='general'</code> 限定到综门店，再按业务部和区域算出 <code>store_id</code> 集合，最后传给日常数据、用户分析、异常监控、单店深度分析查询。</div>
+          <div class="callout warn">如果同一门店同一日期只能归属一个主区域，一期用应用层校验防重；后续需要强约束时再加 PostgreSQL exclusion constraint，避免出现重叠生效区间。</div>
+        </section>
+
+        <section id="parser">
+          <h2>5. Parser 与字段映射</h2>
+          <h3>5.1 artifact 路由</h3>
+          <pre><code>const vertical = connection.business_vertical ?? 'dining'
+
+if (vertical === 'general') {
+  switch (artifactType) {
+    case 'meituan_general_review_stats_daily':
+    case 'meituan_general_review_comments':
+    case 'meituan_general_product_traffic':
+    case 'meituan_general_product_transaction':
+    case 'meituan_general_store_traffic':
+    case 'meituan_general_ranking':
+    case 'douyin_general_review':
+    case 'douyin_general_transaction':
+    case 'douyin_general_product':
+      return parseGeneralInStoreArtifact(...)
+  }
+}</code></pre>
+          <div class="callout warn">每个 parser 必须做表头 sentinel 校验。表头不匹配时返回 <code>COLUMN_DRIFT</code>，不能静默按错列导入。</div>
+
+          <h3>5.2 周期解析</h3>
+          <pre><code>美团日期：YYYY-MM-DD -> period_type=day, period_start=period_end=日期
+抖音日期：YYYY-MM-DD -> period_type=day, period_start=period_end=日期</code></pre>
+          <div class="callout warn">抖音交易和商品导出时必须选择“按日”。如果 parser 读到字段名 <code>周</code> 或值形如 <code>YYYY-MM-DD~YYYY-MM-DD</code>，不要伪造成日数据，应返回导出配置错误并提示重新导出。</div>
+
+          <h3>5.3 关键指标映射</h3>
+          <table>
+            <thead><tr><th>metric_key</th><th>美团字段</th><th>抖音字段</th><th>聚合</th></tr></thead>
+            <tbody>
+              <tr><td><code>exposure_users</code></td><td>客流：曝光人数</td><td>商品：商品曝光人数</td><td>sum</td></tr>
+              <tr><td><code>visit_users</code></td><td>客流：访问人数 / 商品：商品访问人数</td><td>商品：商品访问人数</td><td>sum</td></tr>
+              <tr><td><code>intent_users</code></td><td>客流：意向转化人数</td><td>交易：意向成交人数</td><td>sum</td></tr>
+              <tr><td><code>order_amount</code></td><td>交易：下单金额</td><td>交易：意向成交金额</td><td>sum</td></tr>
+              <tr><td><code>redeemed_amount</code></td><td>交易：核销金额</td><td>交易：核销金额</td><td>sum</td></tr>
+              <tr><td><code>refund_amount</code></td><td>交易：退款金额（原价）</td><td>交易：意向退款金额</td><td>sum</td></tr>
+              <tr><td><code>positive_review_count</code></td><td>评价汇总：新增好评数</td><td>推荐等级 &gt;= 4星</td><td>sum</td></tr>
+              <tr><td><code>ranking_city_rank</code></td><td>榜单：城市排名</td><td>无</td><td>latest</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="queries">
+          <h2>6. Demo 查询设计</h2>
+          <h3>6.1 总数据</h3>
+          <pre><code>WITH scoped_stores AS (
+  SELECT DISTINCT s.id AS store_id
+  FROM stores s
+  LEFT JOIN store_region_assignments sra
+    ON sra.store_id = s.id
+   AND sra.valid_from &lt;= $2::date
+   AND (sra.valid_to IS NULL OR sra.valid_to &gt;= $1::date)
+  LEFT JOIN store_operation_regions r ON r.id = sra.region_id
+  LEFT JOIN store_business_departments d ON d.id = r.department_id
+  WHERE s.business_vertical = 'general'
+    AND ($3::uuid[] IS NULL OR s.id = ANY($3::uuid[]))
+    AND ($4::uuid IS NULL OR d.id = $4::uuid)
+    AND ($5::uuid IS NULL OR r.id = $5::uuid)
+),
+connected_stores AS (
+  SELECT DISTINCT pcs.store_id, pc.platform
+  FROM platform_connection_stores pcs
+  JOIN platform_connections pc ON pc.id = pcs.connection_id
+  JOIN scoped_stores ss ON ss.store_id = pcs.store_id
+  WHERE pc.business_vertical = 'general'
+    AND pc.platform = ANY(ARRAY['meituan', 'dianping', 'douyin'])
+),
+meituan_dianping_tx AS (
+  SELECT SUM(product_verified_amount) AS revenue, SUM(product_vouchers_verified) AS orders, SUM(product_revenue_after) AS gmv
+  FROM product_detail pd
+  JOIN stores s ON s.id = pd.store_id
+  WHERE EXISTS (
+    SELECT 1
+    FROM connected_stores cs
+    WHERE cs.store_id = pd.store_id
+      AND cs.platform = CASE pd.platform
+        WHEN '美团' THEN 'meituan'
+        WHEN '点评' THEN 'dianping'
+        ELSE pd.platform
+      END
+  )
+    AND pd.platform IN ('meituan', 'dianping', '美团', '点评')
+    AND pd.date BETWEEN $1 AND $2
+),
+douyin_tx AS (
+  SELECT SUM(redeemed_amount) AS revenue, SUM(redeemed_voucher_count) AS orders, SUM(intent_revenue) AS gmv
+  FROM douyin_transactions_detail dt
+  JOIN stores s ON s.id = dt.store_id
+  WHERE EXISTS (
+    SELECT 1
+    FROM connected_stores cs
+    WHERE cs.store_id = dt.store_id
+      AND cs.platform = 'douyin'
+  )
+    AND dt.date BETWEEN $1 AND $2
+)
+SELECT
+  COALESCE(meituan_dianping_tx.revenue, 0) + COALESCE(douyin_tx.revenue, 0) AS revenue,
+  COALESCE(meituan_dianping_tx.orders, 0) + COALESCE(douyin_tx.orders, 0) AS orders,
+  COALESCE(meituan_dianping_tx.gmv, 0) + COALESCE(douyin_tx.gmv, 0) AS gmv
+FROM meituan_dianping_tx, douyin_tx;</code></pre>
+
+          <h3>6.2 单店深度分析一期边界</h3>
+          <div class="two-col">
+            <div>
+              <h4>一期可展示</h4>
+              <ul>
+                <li>渠道偏好：美团/点评/抖音核销金额占比。</li>
+                <li>商品偏好：从商品名称解析特惠、中包、大包、尊享、12H、4H。</li>
+                <li>评价画像：评价关键词、差评内容、回复情况。</li>
+                <li>榜单表现：城市/行政区/商圈排名。</li>
+              </ul>
+            </div>
+            <div>
+              <h4>二期待接入</h4>
+              <ul>
+                <li>包间使用率、翻台率。</li>
+                <li>下单时段。</li>
+                <li>用户列表与标签。</li>
+                <li>消费生命周期和流失用户。</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="worker">
+          <h2>7. Worker 隔离设计</h2>
+          <p>到综 worker 和现有到餐 worker 并存时，必须在入口 SELECT 按 <code>business_vertical</code> 过滤。同一个 <code>platform='meituan'</code>，<code>dining</code> 和 <code>general</code> 可以走不同下载逻辑。</p>
+          <table>
+            <thead><tr><th>worker / 资源</th><th>dining 连接</th><th>general 连接</th><th>到餐 artifact</th><th>到综 artifact</th><th>到餐数据</th><th>到综数据</th></tr></thead>
+            <tbody>
+              <tr><td>现有到餐 worker</td><td>允许</td><td>禁止</td><td>允许</td><td>禁止</td><td>允许</td><td>禁止</td></tr>
+              <tr><td>久雀到综 worker</td><td>禁止</td><td>允许</td><td>禁止</td><td>允许</td><td>禁止</td><td>允许</td></tr>
+            </tbody>
+          </table>
+          <pre><code>SELECT *
+FROM platform_connections
+WHERE connection_status = 'connected'
+  AND platform IN ('meituan', 'dianping', 'douyin')
+  AND business_vertical = 'general'
+FOR UPDATE SKIP LOCKED;</code></pre>
+          <div class="callout">不要在 dispatch 里做 fallback 到餐饮 connector。能力边界必须在取任务入口挡死。</div>
+        </section>
+
+        <section id="phases">
+          <h2>8. 开发任务拆分</h2>
+          <div class="pipeline">
+            <div class="step"><b>Phase 1</b><span>新增 business_vertical 三个字段、门店运营组织维表、9 个 general artifact、表头 sentinel、dry-run 脚本和周期解析。</span></div>
+            <div class="step"><b>Phase 2</b><span>和用户确认数据口径后做字段对照：差异小则兼容现有表，差异大则新建业态专表；不改现有唯一键。</span></div>
+            <div class="step"><b>Phase 3</b><span>新增 general in-store 查询模块，总览按核销口径返回并保留 GMV，所有查询过滤 business_vertical='general'。</span></div>
+            <div class="step"><b>Phase 4</b><span>启用可由 Excel 支撑的异常监控：营业额、曝光、转化、退款、评价、榜单。</span></div>
+            <div class="step"><b>Phase 5</b><span>接小程序/POS/订单后，补包间、翻台、用户画像、流失复购。</span></div>
+          </div>
+        </section>
+
+        <section id="gaps">
+          <h2>9. 仍需补充</h2>
+          <table>
+            <thead><tr><th>材料</th><th>用途</th><th>是否阻塞一期</th></tr></thead>
+            <tbody>
+              <tr><td>截图更新</td><td>当前 HTML 已嵌入 Image #1 到 Image #9，以及 /daily、/users、/monitor、/stores/上海徐汇店 demo 截图；后续如后台 UI 变化，覆盖 assets 同名图片即可</td><td>否</td></tr>
+              <tr><td>抖音评价导出动作复测</td><td>Image #7 已补评价导出弹窗；开发时仍需确认导出按钮点击后的下载任务和文件命名规则</td><td>部分阻塞 RPA</td></tr>
+              <tr><td>抖音按日导出样本复测</td><td>交易、商品都选择“按日”后重新导出一份样本，作为 parser 的固定样本</td><td>建议补充</td></tr>
+              <tr><td>小程序/POS/订单样本</td><td>包间、翻台、用户画像、流失/复购</td><td>不阻塞一期，阻塞二期</td></tr>
+            </tbody>
+          </table>
+          <div class="callout blue">
+            对外口径：一期接入美团经营宝和抖音来客可下载 Excel，优先建设门店经营、平台流量、商品交易、评价、榜单和基础异常监控。营业额默认采用核销金额，同时保留成交金额作为 GMV 备用口径。
+          </div>
+        </section>
+
+        <div class="footer">
+          久雀到综数据口径与开发文档 · 生成日期 2026-05-29
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="image-preview" id="imagePreview" hidden aria-hidden="true">
+    <div class="preview-panel" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+      <div class="preview-head">
+        <strong id="previewTitle">截图预览</strong>
+        <button class="preview-close" type="button" data-preview-close aria-label="关闭预览">×</button>
+      </div>
+      <div class="preview-body">
+        <img id="previewImage" alt="">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function setupImagePreview() {
+      var modal = document.getElementById('imagePreview');
+      var previewImage = document.getElementById('previewImage');
+      var previewTitle = document.getElementById('previewTitle');
+      var closeButton = modal.querySelector('[data-preview-close]');
+
+      function closePreview() {
+        modal.hidden = true;
+        modal.setAttribute('aria-hidden', 'true');
+        previewImage.removeAttribute('src');
+        document.body.classList.remove('modal-open');
+      }
+
+      function openPreview(img) {
+        var figure = img.closest('figure');
+        var title = figure && figure.querySelector('figcaption b')
+          ? figure.querySelector('figcaption b').textContent.trim()
+          : img.alt || '截图预览';
+
+        previewImage.src = img.src;
+        previewImage.alt = img.alt || title;
+        previewTitle.textContent = title;
+        modal.hidden = false;
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+        closeButton.focus();
+      }
+
+      document.querySelectorAll('.shot img').forEach(function bindPreview(img) {
+        var shot = img.parentElement;
+        shot.tabIndex = 0;
+        shot.setAttribute('role', 'button');
+        shot.setAttribute('aria-label', '预览大图：' + (img.alt || '截图'));
+        shot.addEventListener('click', function () { openPreview(img); });
+        shot.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openPreview(img);
+          }
+        });
+      });
+
+      modal.addEventListener('click', function (event) {
+        if (event.target === modal || event.target.hasAttribute('data-preview-close')) {
+          closePreview();
+        }
+      });
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !modal.hidden) closePreview();
+      });
+    })();
+  </script>
+</body>
+</html>
