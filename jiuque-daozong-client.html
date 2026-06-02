@@ -730,38 +730,7 @@
 
         <section id="mapping">
           <h2>3. Demo 指标对应关系</h2>
-          <h3>3.1 日常数据跟进</h3>
-          <table>
-            <thead><tr><th>标记</th><th>demo 模块或指标</th><th>当前 Excel 支撑度</th><th>数据源</th><th>计算方式</th><th>需要客户确认/补数</th></tr></thead>
-            <tbody>
-              <tr><td>D1</td><td>营业额</td><td class="support ok">支撑</td><td>美团交易 <code>核销金额</code>；抖音交易 <code>核销金额</code></td><td>默认 <code>sum(核销金额)</code>；GMV 备用口径用 <code>sum(下单金额 / 意向成交金额)</code>。</td><td>展示实收/核销，还是成交 GMV。</td></tr>
-              <tr><td>D2</td><td>订单量</td><td class="support ok">支撑</td><td>美团交易 <code>核销券数</code>；抖音交易 <code>核销券数</code></td><td>默认 <code>sum(核销券数)</code>；下单口径用 <code>sum(下单券数 / 意向成交券数)</code>。</td><td>订单量按券数、订单数还是用户数。</td></tr>
-              <tr><td>D3</td><td>单均</td><td class="support ok">支撑</td><td>美团交易、抖音交易</td><td><code>营业额 / 订单量</code>，默认按核销口径派生。</td><td>分母是否按核销券数。</td></tr>
-              <tr><td>D4</td><td>总好评数</td><td class="support ok">支撑</td><td>美团评价汇总 <code>新增好评数</code>；抖音评价明细 <code>推荐等级</code></td><td>美团/点评优先用汇总；抖音按 <code>推荐等级 &gt;= 4星</code> 聚合。</td><td>抖音 4 星是否算好评；中评/差评分界。</td></tr>
-              <tr><td>D5</td><td>单包间产值</td><td class="support no">不支撑</td><td>当前 9 个平台 Excel 不提供包间数和房态</td><td>二期接入后按 <code>营业额 / 可售包间数</code> 或客户确认的分母计算。</td><td>可售包间数、营业包间数、实际开台数用哪个做分母。</td></tr>
-              <tr><td>D6</td><td>翻台率</td><td class="support no">不支撑</td><td>当前 9 个平台 Excel 不提供包间、场次、时段</td><td>二期接订单/房态后按 <code>场次数 / 可售包间数</code> 或房型维度计算。</td><td>按包间、房型还是门店营业时长计算。</td></tr>
-              <tr><td>D7</td><td>私域好友数</td><td class="support no">不支撑</td><td>当前 9 个平台 Excel 不提供企微/小程序会员数据</td><td>二期接企微或小程序后读取外部累计值/净增值。</td><td>私域好友是累计好友、净增好友还是可触达用户。</td></tr>
-            </tbody>
-          </table>
-
-          <h3>3.2 平台卡片与异常监控</h3>
-          <table>
-            <thead><tr><th>标记</th><th>demo 模块或指标</th><th>当前 Excel 支撑度</th><th>数据源</th><th>计算方式</th><th>需要客户确认/补数</th></tr></thead>
-            <tbody>
-              <tr><td>P1</td><td>美团/点评流量：曝光、访问、意向、下单</td><td class="support ok">支撑</td><td>美团客流数据：<code>曝光人数</code>、<code>访问人数</code>、<code>意向转化人数</code>、<code>下单人数</code></td><td>按 <code>日期 x 门店 x 平台</code> 汇总；如 Excel 平台列为“点评/美团”，分别写 <code>dianping</code> / <code>meituan</code>。</td><td>卡片合并点评+美团，还是保留平台切换。</td></tr>
-              <tr><td>P2</td><td>美团/点评营业：营业额、订单、退款、单均</td><td class="support ok">支撑</td><td>美团商品交易数据：下单、核销、退款字段</td><td>营业额默认 <code>核销金额</code>，订单量默认 <code>核销券数</code>，单均派生；GMV 保留下单金额。</td><td>核销金额和下单金额的展示取舍。</td></tr>
-              <tr><td>P3</td><td>评价：好/中/差、好评率、星级、回复状态</td><td class="support partial">部分支撑</td><td>美团评价汇总、门店评价详情、抖音评价明细</td><td>好评/差评优先用汇总；中评用差额或明细星级；回复状态从评价明细聚合；星级评分可用明细均值弱口径。</td><td>中评计算方式；星级评分是否接受明细均值。</td></tr>
-              <tr><td>P4</td><td>榜单排名</td><td class="support partial">部分支撑</td><td>美团榜单数据：<code>城市排名</code>、<code>行政区排名</code>、<code>商圈排名</code></td><td>默认展示商圈排名；缺失时降级展示行政区或城市。抖音暂无本批榜单样本。</td><td>优先展示商圈、行政区还是城市榜；抖音榜单是否需要补入口。</td></tr>
-              <tr><td>P5</td><td>经营评分、ROS、牌级</td><td class="support no">不支撑</td><td>当前 9 个平台 Excel 不提供</td><td>暂标待接入，可人工维护或补导出入口。</td><td>这些字段是否必须一期上线。</td></tr>
-              <tr><td>P6</td><td>抖音流量与成交：访问、下单、成交分析、营业额</td><td class="support partial">部分支撑</td><td>抖音商品报表、抖音交易报表</td><td>交易建议用按日交易报表；商品流量如需单店，需要重新导出带门店维度样本。</td><td>下单人数取意向成交人数还是核销人数；商品流量是否必须单店展示。</td></tr>
-              <tr><td>P7</td><td>抖音货架点击、门店页来源、经营分</td><td class="support no">不支撑</td><td>当前交易/商品/评价样本不提供明确字段</td><td>需要补抖音门店流量来源、货架点击和经营分导出入口或 API。</td><td>货架点击对应哪个后台指标；推荐/搜索/同城来源是否必须一期上线。</td></tr>
-              <tr><td>P8</td><td>小程序平台卡片</td><td class="support no">不支撑</td><td>当前 9 个平台 Excel 不提供小程序流量、订单、投诉、活动数据</td><td>二期接小程序埋点、订单、投诉、弹窗/卡券点击数据。</td><td>小程序是否纳入一期；若纳入需补样本和字段说明。</td></tr>
-              <tr><td>P9</td><td>一期可启用异常告警：营业额、曝光、转化、退款、差评、评价未回复、榜单下降</td><td class="support ok">支撑</td><td>美团/抖音交易、美团客流、评价汇总与明细、榜单数据</td><td>按门店和日期范围做环比/同比、阈值判断和排名变化检测。</td><td>告警阈值、比较周期、严重/预警/关注分级。</td></tr>
-              <tr><td>P10</td><td>二期待接入异常告警：翻台、包间、设备、合规、回本、用户身份</td><td class="support no">不支撑</td><td>当前平台 Excel 不提供房态、设备、督导、财务、用户身份</td><td>只预留风险分类，不纳入一期 Excel 看板。</td><td>二期数据系统和字段责任方。</td></tr>
-            </tbody>
-          </table>
-
-          <h3>3.3 /daily demo 字段级口径确认</h3>
+          <h3>3.1 /daily demo 字段级口径确认</h3>
           <p>下面两张图来自 <code>https://jiuque.jingyingcanmou.cn/daily</code> 当前 demo 页面，用于和客户确认页面字段、Excel 来源和一期/二期边界。点击图片可预览大图。</p>
 
           <figure>
@@ -840,7 +809,7 @@
             自查结论：当前 Excel 不能覆盖 demo 全部字段，小程序、单包间产值、翻台率、私域好友、经营分、牌级、抖音门店页流量来源需要明确标为待接入。美团评价汇总与评价明细已拆成两个 artifact，抖音交易/商品必须按日导出。
           </div>
 
-          <h3>3.4 /users demo 字段级口径确认</h3>
+          <h3>3.2 /users demo 字段级口径确认</h3>
           <p><code>/users</code> 页面核心是用户分层和行为分布。当前 9 个平台 Excel 只有聚合交易、商品、评价数据，不包含稳定用户 ID、订单 ID、订单时间、包间、消费时长，因此多数指标不能由一期平台 Excel 严格支撑。</p>
           <figure>
             <div class="shot demo-shot has-image">
@@ -870,7 +839,7 @@
             </tbody>
           </table>
 
-          <h3>3.5 /monitor demo 字段级口径确认</h3>
+          <h3>3.3 /monitor demo 字段级口径确认</h3>
           <p><code>/monitor</code> 是规则引擎页：先用经营、流量、评价、榜单、订单/房态、财务、设备、督导等指标生成风险项，再按严重/预警/关注聚合。</p>
           <figure>
             <div class="shot demo-shot has-image">
@@ -902,7 +871,7 @@
             </tbody>
           </table>
 
-          <h3>3.6 /stores/上海徐汇店 demo 字段级口径确认</h3>
+          <h3>3.4 /stores/上海徐汇店 demo 字段级口径确认</h3>
           <p>单店页展示单店订单行为、包型、消费能力、留存、画像标签。当前平台 Excel 能支撑平台交易、商品/套餐、评价、榜单这些单店弱口径；涉及用户、包间、预约、换房、消费时长、留存标签的图，需要二期订单/房态/会员数据。</p>
           <figure>
             <div class="shot demo-shot has-image">
