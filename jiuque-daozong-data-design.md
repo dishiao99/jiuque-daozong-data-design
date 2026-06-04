@@ -1,10 +1,10 @@
 # 久雀到综数据口径与开发文档
 
-> 日期：2026-06-04
-> 客户：久雀
-> 业务线：到综 / 到店综合 / 棋牌茶楼
-> demo：https://jiuque.jingyingcanmou.cn/
-> 依据：9 张后台截图 + 9 个实际下载 Excel 样本
+> - 日期：2026-06-04
+> - 客户：久雀
+> - 业务线：到综 / 到店综合 / 棋牌茶楼
+> - demo：https://jiuque.jingyingcanmou.cn/
+> - 依据：9 张后台截图 + 9 个实际下载 Excel 样本
 
 ## 0. 结论
 
@@ -62,8 +62,8 @@ Excel 表头：
 
 - 到综 source 表：`meituan_general_review_stats_daily`；不写入到餐 `store_reviews`。
 - 周期：按 `date` 日粒度入库，周期元信息写入 artifact metadata。
-- 唯一键：沿用现有 `UNIQUE(store_id, date, platform)`。
-- 口径：`platform` 保持 `meituan` / `dianping`，业态从 `stores.business_vertical='general'` 或连接继承。
+- 唯一键：`(source_connection_id, stat_date, platform_store_id)`。
+- 口径：`source_platform='ALL'` 原样保留；查询层展示为“点评+美团”，并始终按 `business_vertical='general'` 过滤。
 
 ### 图 2：美团门店评价详情
 
@@ -88,7 +88,7 @@ Excel 表头：
 
 - 到综 source 表：`meituan_general_review_comments`；不写入到餐 `store_comments`。
 - 星级：`5.0星` 解析为 `5.0`
-- 子评分：`服务:3.5, 设施:4.5, 划算:3.5` 分别映射到 `service_score`、`environment_score` 等现有字段；`划算` 没有稳定字段时原文进 `raw_data`。
+- 子评分：`服务:3.5, 设施:4.5, 划算:3.5` 分别映射到到综 source 表的标准评分字段；`划算` 没有稳定字段时原文进 `raw_row`。
 - 去重：没有稳定评价 ID，使用内容 hash 生成 `platform_comment_id`。
 
 ### 图 3：美团商品分析
@@ -114,7 +114,7 @@ Excel 表头：
 
 - 到综 source 表：`meituan_general_product_traffic_daily`；不写入到餐 `product_detail`。
 - 周期：按 `date` 日粒度入库，周期元信息写入 artifact metadata。
-- 唯一键：沿用现有 `UNIQUE(store_id, date, platform, product_id)`。
+- 唯一键：`(source_connection_id, stat_date, platform_store_id, product_id)`。
 - 注意：样例中存在大量空值，parser 需要把空字符串解析为 null/0，不能抛错。
 
 ### 图 4：美团交易分析
@@ -131,7 +131,7 @@ Excel 表头：
 Excel 表头：
 
 ```text
-日期, 商品类型, 商品ID, 商品名称, 省份, 城市, 点评门店ID, 门店名称,
+日期, 商品类型,
 下单人数, 下单券数, 下单金额（原价）, 下单金额,
 核销人数, 核销券数, 核销金额（原价）, 核销金额,
 退款券数, 退款金额（原价）
@@ -139,7 +139,7 @@ Excel 表头：
 
 入库建议：
 
-- 到综 source 表：`meituan_general_product_traffic_daily`；不写入到餐 `product_detail`。，必要时按门店日聚合回写 `store_transactions` / `refunds`
+- 到综 source 表：`meituan_general_transaction_type_daily`；该文件是品牌级 `日期 x 商品类型`，不写入单店交易表。
 - 查询口径：按 `business_vertical='general'` 过滤，不新增综合平台
 - 默认营业额口径：`核销金额`
 - GMV 备用口径：`下单金额`
@@ -248,7 +248,7 @@ Excel 表头：
 - 到综 source 表：`douyin_general_transaction_daily`；按到综查询层独立消费。
 - 查询口径：按日导出、按日入库；如果导出结果是 `周` 字段，需要重新按日导出。
 - 周期：`period_type='day'`
-- `交易体裁(一级/二级)` 继续使用现有字段，用于渠道分析。
+- `交易体裁(一级/二级)` 进入到综 source 表字段，用于渠道分析。
 
 ### 图 9：抖音商品报表
 
@@ -604,4 +604,5 @@ apps/main/app/api/jiuque-general/coverage/route.ts
 建议对外这样表述：
 
 > 一期接入美团经营宝和抖音来客可下载 Excel，优先建设门店经营、平台流量、商品交易、评价、榜单和基础异常监控。营业额默认采用核销金额，更贴近实际消费；同时保留成交金额作为 GMV 备用口径。
+>
 > 用户画像、包间翻台、私域好友、设备合规、回本周期不属于本批平台 Excel 的直接字段，需要补充小程序/POS/订单/房型/企微/财务数据后作为二期建设。
