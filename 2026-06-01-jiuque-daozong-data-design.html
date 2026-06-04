@@ -601,7 +601,7 @@
       <main>
         <section id="summary">
           <h2>0. 结论</h2>
-          <p class="lead">本批样本已经足够启动一期 parser 和数据表设计。美团经营宝侧可以覆盖门店客流、商品访问、商品交易、评价汇总、评价明细、榜单；抖音来客侧可以覆盖交易、商品、评价明细。</p>
+          <p class="lead">久雀一期范围已确认：只接入美团经营宝和抖音来客的 Excel 可下载数据。本批样本已经足够启动一期 parser、数据表设计和 RPA 下载链路；美团经营宝侧覆盖门店客流、商品访问、商品交易、评价汇总、评价明细、榜单，抖音来客侧覆盖交易、商品、评价明细。</p>
           <div class="cards">
             <div class="metric-card"><span>美团/点评入口</span><strong>6</strong><span>评价、商品、交易、客流、榜单</span></div>
             <div class="metric-card"><span>抖音入口</span><strong>3</strong><span>评价、交易、商品</span></div>
@@ -612,10 +612,10 @@
             一期建议建设“平台 Excel 经营看板”，覆盖 demo 的日常数据跟进、平台数据卡片、部分异常监控。单包间产值、翻台率、私域好友、用户标签、用户列表、设备合规、回本周期，需要二期接小程序/POS/房型/会员/企微/财务数据。
           </div>
           <div class="callout blue">
-            表设计按最新口径修正：<code>meituan</code>、<code>dianping</code>、<code>douyin</code> 继续作为平台维度；“到店综合”不新增为平台。新增 <code>business_vertical</code> 业态维度，<code>dining</code> 表示到店餐饮，<code>general</code> 表示到店综合。
+            架构结论：不为久雀单独新建一套数据库；共享现有 PostgreSQL，但先新增 <code>business_vertical</code> 业态维度。<code>meituan</code>、<code>dianping</code>、<code>douyin</code> 继续作为平台维度；“到店综合”不新增为平台。connector 需要到综专用采集路径，scheduler 可以复用现有服务，但取任务入口必须按业态过滤。
           </div>
           <div class="callout warn">
-            本 HTML 已把 9 张入口截图和 5 张 demo 页面截图放入 <code>docs/assets/jiuque-daozong/</code>，页面打开后会直接显示真实图片；如果后续截图更新，只需要覆盖 assets 目录下对应图片。
+            本 HTML 已把 9 张入口截图和 5 张 demo 页面截图放入 <code>assets/jiuque-daozong/</code>，页面打开后会直接显示真实图片；如果后续截图更新，只需要覆盖 assets 目录下对应图片。
           </div>
         </section>
 
@@ -939,10 +939,10 @@
 
         <section id="schema">
           <h2>4. 入库模型设计</h2>
-          <p>修正原则：平台和业态拆开建模。<code>platform</code> 继续表示数据来源，保持 <code>meituan</code>、<code>dianping</code>、<code>douyin</code>；到店综合通过 <code>business_vertical='general'</code> 表示，不新增综合平台。</p>
+          <p>修正原则：平台和业态拆开建模。<code>platform</code> 继续表示数据来源，保持 <code>meituan</code>、<code>dianping</code>、<code>douyin</code>；到店综合通过 <code>business_vertical='general'</code> 表示，不新增综合平台，也不为久雀单独复制一套数据库。</p>
 
           <div class="callout blue">
-            到店餐饮和到店综合不会在同一个实体门店上共存，因此现有事实表唯一键，例如 <code>UNIQUE(store_id, date, platform)</code>，短期保持不变。
+            到店餐饮和到店综合不会在同一个实体门店上共存，因此现有事实表唯一键，例如 <code>UNIQUE(store_id, date, platform)</code>，短期保持不变。真正的隔离边界来自 <code>stores.business_vertical</code> 和 <code>platform_connections.business_vertical</code>，不是靠复制平台码。
           </div>
 
           <h3>4.1 新增业态字段</h3>
@@ -958,14 +958,23 @@ ALTER TABLE platform_authorizations
   ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining'
   CHECK (business_vertical IN ('dining', 'general'));
 
+CREATE INDEX IF NOT EXISTS idx_stores_business_vertical
+  ON stores(business_vertical);
+
 CREATE INDEX IF NOT EXISTS idx_platform_connections_platform_vertical
-  ON platform_connections(platform, business_vertical, connection_status);</code></pre>
+  ON platform_connections(platform, business_vertical, connection_status);
+
+CREATE INDEX IF NOT EXISTS idx_platform_authorizations_platform_vertical
+  ON platform_authorizations(platform, business_vertical, authorization_status);</code></pre>
+          <div class="callout blue">
+            <code>stores.business_vertical</code> 是门店业务归属的最终判断；<code>platform_connections.business_vertical</code> 和 <code>platform_authorizations.business_vertical</code> 用于授权、采集、scheduler 取任务和 parser 路由。创建连接时应从门店继承，品牌级连接则由用户选择。
+          </div>
 
           <h3>4.2 artifact 命名</h3>
           <div class="callout blue">
             兼容说明：<code>platform_connections.platform</code>、<code>platform_authorizations.platform</code> 使用英文平台 key；部分既有事实表历史上可能保存中文平台值，例如 <code>product_detail.platform='美团'/'点评'</code>。到综开发时不要新增 <code>meituan_general</code> 这类平台码；如果复用历史表，parser 和查询层需要做 <code>normalize_platform_key</code> 兼容。
           </div>
-          <p>格式和到餐一致时继续用现有 artifact type，并在 metadata 记录 <code>business_vertical='general'</code>；格式不同则使用带业态的 artifact type。本文 9 个样本先按格式不同处理：</p>
+          <p>格式和到餐一致时继续用现有 artifact type，并在 metadata 记录 <code>business_vertical='general'</code>；格式不同则使用带业态的 artifact type。本文 9 个样本一期先按格式不同处理，避免误走现有到餐 parser：</p>
           <pre><code>meituan_general_review_stats_daily
 meituan_general_review_comments
 meituan_general_product_traffic
@@ -994,7 +1003,7 @@ douyin_general_product</code></pre>
 
           <h3>4.4 表结构处理原则</h3>
           <div class="callout">
-            本阶段不预先列具体 ALTER。开发计划里先和用户确认数据口径，再做字段对照：能稳定映射到现有字段的，直接写现有表；差异较小的，用现有表兼容；差异明显、会让现有表语义变乱的，再新建业态专表。
+            一期范围已确认只接美团经营宝和抖音来客 Excel。本阶段不为小程序、POS、订单、房态预建表；先对 9 个 Excel 做字段对照：能稳定映射到现有字段的，直接写现有表；差异较小的，用现有表兼容；差异明显、会让现有表语义变乱的，再新建业态专表。
           </div>
           <div class="callout warn">后续如果确认字段结构差异明显，再新增 <code>in_store_general_store_daily</code>、<code>in_store_general_product_daily</code> 等业态专表。</div>
 
@@ -1043,6 +1052,7 @@ CREATE TABLE IF NOT EXISTS store_region_assignments (
         <section id="parser">
           <h2>5. Parser 与字段映射</h2>
           <h3>5.1 artifact 路由</h3>
+          <p>Parser 路由按 <code>platform + business_vertical + artifact_type</code> 判断。平台只表示来源，业态决定走到餐逻辑还是到综逻辑。</p>
           <pre><code>const vertical = connection.business_vertical ?? 'dining'
 
 if (vertical === 'general') {
@@ -1059,6 +1069,9 @@ if (vertical === 'general') {
       return parseGeneralInStoreArtifact(...)
   }
 }</code></pre>
+          <div class="callout blue">
+            如果未来确认某个到综 Excel 与现有到餐 artifact 完全一致，可以复用现有 artifact type，但必须写入 <code>metadata.business_vertical='general'</code>，且 parser 分支必须读取 connection vertical，不能只靠 artifact type 判断。
+          </div>
           <div class="callout warn">每个 parser 必须做表头 sentinel 校验。表头不匹配时返回 <code>COLUMN_DRIFT</code>，不能静默按错列导入。</div>
 
           <h3>5.2 周期解析</h3>
@@ -1167,7 +1180,7 @@ FROM meituan_dianping_tx, douyin_tx;</code></pre>
 
         <section id="worker">
           <h2>7. Worker 隔离设计</h2>
-          <p>到综 worker 和现有到餐 worker 并存时，必须在入口 SELECT 按 <code>business_vertical</code> 过滤。同一个 <code>platform='meituan'</code>，<code>dining</code> 和 <code>general</code> 可以走不同下载逻辑。</p>
+          <p>不需要另写一套 scheduler 代码；可以在现有 scheduler 中按业态分轮取任务，也可以部署一个 <code>general</code> mode 实例。无论采用哪种运行方式，取任务入口都必须显式声明业态，例如 <code>WORKER_BUSINESS_VERTICAL=dining|general</code>，并在 SELECT 里过滤 <code>business_vertical</code>。同一个 <code>platform='meituan'</code>，<code>dining</code> 和 <code>general</code> 可以走不同下载逻辑。</p>
           <table>
             <thead><tr><th>worker / 资源</th><th>dining 连接</th><th>general 连接</th><th>到餐 artifact</th><th>到综 artifact</th><th>到餐数据</th><th>到综数据</th></tr></thead>
             <tbody>
@@ -1179,18 +1192,30 @@ FROM meituan_dianping_tx, douyin_tx;</code></pre>
 FROM platform_connections
 WHERE connection_status = 'connected'
   AND platform IN ('meituan', 'dianping', 'douyin')
-  AND business_vertical = 'general'
+  AND business_vertical = $1 -- workerBusinessVertical
 FOR UPDATE SKIP LOCKED;</code></pre>
-          <div class="callout">不要在 dispatch 里做 fallback 到餐饮 connector。能力边界必须在取任务入口挡死。</div>
+          <pre><code>switch (`${connection.platform}:${connection.business_vertical}`) {
+  case 'meituan:dining':
+  case 'dianping:dining':
+    return new MeituanConnector(...)
+  case 'douyin:dining':
+    return new DouyinConnector(...)
+  case 'meituan:general':
+  case 'dianping:general':
+    return new MeituanGeneralConnector(...)
+  case 'douyin:general':
+    return new DouyinGeneralConnector(...)
+}</code></pre>
+          <div class="callout">不要在 dispatch 里做 fallback 到餐饮 connector。能力边界必须在取任务入口挡死；worker-browser 加载连接后也要二次校验 <code>business_vertical</code>，避免脏数据或错误队列污染隔离边界。</div>
         </section>
 
         <section id="phases">
           <h2>8. 开发任务拆分</h2>
           <div class="pipeline">
-            <div class="step"><b>Phase 1</b><span>新增 business_vertical 三个字段、门店运营组织维表、9 个 general artifact、表头 sentinel、dry-run 脚本和周期解析。</span></div>
-            <div class="step"><b>Phase 2</b><span>和用户确认数据口径后做字段对照：差异小则兼容现有表，差异大则新建业态专表；不改现有唯一键。</span></div>
-            <div class="step"><b>Phase 3</b><span>新增 general in-store 查询模块，总览按核销口径返回并保留 GMV，所有查询过滤 business_vertical='general'。</span></div>
-            <div class="step"><b>Phase 4</b><span>启用可由 Excel 支撑的异常监控：营业额、曝光、转化、退款、评价、榜单。</span></div>
+            <div class="step"><b>Phase 1</b><span>新增 business_vertical 三个字段、scheduler/worker 业态参数、取任务 SELECT 过滤、门店运营组织维表、9 个 general artifact、表头 sentinel、dry-run 脚本和周期解析。</span></div>
+            <div class="step"><b>Phase 2</b><span>实现到综专用美团/抖音 connector 路径和 9 类 parser；差异小则兼容现有表，差异大再建业态专表；不改现有唯一键。</span></div>
+            <div class="step"><b>Phase 3</b><span>新增 general in-store 查询模块，总览按核销口径返回并保留 GMV，所有查询先按 business_vertical='general' 缩门店范围。</span></div>
+            <div class="step"><b>Phase 4</b><span>启用可由 Excel 支撑的异常监控：营业额、曝光、转化、退款、评价、榜单；不可支撑字段明确待接入。</span></div>
             <div class="step"><b>Phase 5</b><span>接小程序/POS/订单后，补包间、翻台、用户画像、流失复购。</span></div>
           </div>
         </section>
@@ -1207,7 +1232,7 @@ FOR UPDATE SKIP LOCKED;</code></pre>
             </tbody>
           </table>
           <div class="callout blue">
-            对外口径：一期接入美团经营宝和抖音来客可下载 Excel，优先建设门店经营、平台流量、商品交易、评价、榜单和基础异常监控。营业额默认采用核销金额，同时保留成交金额作为 GMV 备用口径。
+            对外口径：一期确认只接入美团经营宝和抖音来客可下载 Excel，优先建设门店经营、平台流量、商品交易、评价、榜单和基础异常监控。营业额默认采用核销金额，同时保留成交金额作为 GMV 备用口径。小程序/POS/订单/房态/会员数据不阻塞一期，但阻塞包间、翻台和完整用户画像。
           </div>
         </section>
 

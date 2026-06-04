@@ -8,13 +8,13 @@
 
 ## 0. 结论
 
-本批样本已经足够启动一期 parser 和数据表设计。美团经营宝侧可以覆盖门店客流、商品访问、商品交易、评价汇总、评价明细、榜单；抖音来客侧可以覆盖交易、商品、评价明细。
+久雀一期范围已确认：只接入美团经营宝和抖音来客的 Excel 可下载数据。本批样本已经足够启动一期 parser、数据表设计和 RPA 下载链路；美团经营宝侧可以覆盖门店客流、商品访问、商品交易、评价汇总、评价明细、榜单，抖音来客侧可以覆盖交易、商品、评价明细。
 
-表设计按最新对齐口径修正：`meituan`、`dianping`、`douyin` 继续作为平台维度；“到店综合”不新增为平台，不再设计综合平台码。新增业态维度 `business_vertical`，其中 `dining` 表示到店餐饮，`general` 表示到店综合，例如棋牌、KTV、休闲娱乐。
+架构结论：不为久雀单独新建一套数据库；共享现有 PostgreSQL，但先新增 `business_vertical` 业态维度。`meituan`、`dianping`、`douyin` 继续作为平台维度；“到店综合”不新增为平台，不再设计综合平台码。connector 需要到综专用采集路径，scheduler 可以复用现有服务，但取任务入口必须按业态过滤。
 
 一期建议建设“平台 Excel 经营看板”，覆盖 demo 的日常数据跟进、平台数据卡片、部分异常监控。demo 中的单包间产值、翻台率、私域好友、用户标签、用户列表、设备合规、回本周期，不能从本批美团/抖音 Excel 直接得到，需要二期接入小程序/POS/房型/会员/企微/财务数据。
 
-截图说明：HTML 版本已把 `Image #1` 到 `Image #9` 放到 `docs/assets/jiuque-daozong/`，并支持点击截图预览大图。Markdown 版本保留同样的图号锚点，方便和 HTML 对照。
+截图说明：HTML 版本已把 `Image #1` 到 `Image #9` 放到 `assets/jiuque-daozong/`，并支持点击截图预览大图。Markdown 版本保留同样的图号锚点，方便和 HTML 对照。
 
 ## 1. 入口与样本总表
 
@@ -425,12 +425,12 @@ Excel 表头：
 1. `basic-store-schema.sql`：到店通用指标表，例如 `store_traffic`、`store_transactions`、`product_traffic`、`store_reviews`、`store_rankings`，字段是业务口径，带 `store_id + date + platform`。
 2. 平台专表：例如 `meituan_waimai_store_daily`、`taobao_shangou_store_daily`、`douyin_product_detail`、`douyin_review`，字段贴近平台导出，带 `connection_id + stat_date + 平台门店ID`，并保留 `raw_metrics/raw_data`。
 
-结合当前参考意见，久雀到综不应复制一套“综合平台”。正确拆法是：
+结合当前参考意见，久雀到综不应复制一套“综合平台”，也不应为一期复制一套独立数据库。正确拆法是：
 
 - `platform` 表示数据来源，继续使用现有 key：`meituan`、`dianping`、`douyin`。
 - `business_vertical` 表示业态，新增枚举：`dining` 到店餐饮，`general` 到店综合。
 - 到店餐饮和到店综合不会在同一个实体门店上共存，因此 `UNIQUE(store_id, date, platform)`、`UNIQUE(store_id, date, platform, product_id)` 等唯一键短期保持不变。
-- 一期优先复用现有到店分析表；字段能映射的直接入现有表，字段差异先放 `raw_data` / `metadata` 或少量 nullable 字段中。
+- 一期只接美团经营宝和抖音来客 Excel，优先复用现有到店分析表；字段能映射的直接入现有表，字段差异先放 `raw_data` / `metadata` 或少量 nullable 字段中。
 - 后续如果确认到店综合字段结构长期明显不同，再新增 `in_store_general_store_daily`、`in_store_general_product_daily` 这类业态专表。
 
 ### 4.2 新增业态字段
@@ -507,7 +507,7 @@ douyin_general_product
 | 抖音交易 | `douyin_transactions_detail` | `douyin` | `general` | RPA 选择“按日”导出；若文件出现 `周` 字段则重新导出 |
 | 抖音商品 | `douyin_product_detail` | `douyin` | `general` | 商品表缺门店维度时只能做品牌/商品层指标 |
 
-本阶段不预先列具体 ALTER。开发计划里先和用户确认数据口径，再做字段对照：
+一期范围已确认只接美团经营宝和抖音来客 Excel。本阶段不为小程序、POS、订单、房态预建表；先对 9 个 Excel 做字段对照：
 
 1. 能稳定映射到现有字段的，直接写现有表。
 2. 差异较小、只是少量附加字段的，用现有表兼容。
@@ -803,6 +803,8 @@ FROM meituan_dianping_tx, douyin_tx;
 
 到综 worker 和现有餐饮 worker 并存时，必须在入口 SELECT 按 `business_vertical` 过滤。这里不能再靠新平台码隔离，因为 `platform` 必须保持 `meituan`、`dianping`、`douyin`。
 
+不需要另写一套 scheduler 代码；可以在现有 scheduler 中按业态分轮取任务，也可以部署一个 `general` mode 实例。无论采用哪种运行方式，取任务入口都必须显式声明业态，例如 `WORKER_BUSINESS_VERTICAL=dining|general`。auth SELECT 和 scheduled SELECT 都要带这个过滤；worker-browser 加载连接后也要二次校验，避免脏数据或错误队列污染隔离边界。
+
 | worker / 资源 | `business_vertical=dining` 连接 | `business_vertical=general` 连接 | 到餐 artifact | 到综 artifact | 到餐数据 | 到综数据 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 现有到餐 worker | 允许 | 禁止 | 允许 | 禁止 | 允许 | 禁止 |
@@ -813,8 +815,25 @@ SELECT *
 FROM platform_connections
 WHERE connection_status = 'connected'
   AND platform IN ('meituan', 'dianping', 'douyin')
-  AND business_vertical = 'general'
+  AND business_vertical = $1 -- workerBusinessVertical
 FOR UPDATE SKIP LOCKED;
+```
+
+connector factory 也要按 `(platform, business_vertical)` 路由，不要在现有到餐 connector 里堆大 if：
+
+```ts
+switch (`${connection.platform}:${connection.business_vertical}`) {
+  case 'meituan:dining':
+  case 'dianping:dining':
+    return new MeituanConnector(...)
+  case 'douyin:dining':
+    return new DouyinConnector(...)
+  case 'meituan:general':
+  case 'dianping:general':
+    return new MeituanGeneralConnector(...)
+  case 'douyin:general':
+    return new DouyinGeneralConnector(...)
+}
 ```
 
 不要在 dispatch 里做 fallback 到餐饮 connector。能力边界必须在取任务入口挡死；同一个 `platform='meituan'`，`dining` 和 `general` 可以走不同下载逻辑。
@@ -824,6 +843,7 @@ FOR UPDATE SKIP LOCKED;
 ### Phase 1：字段冻结与 dry-run
 
 - 新增 `stores.business_vertical`、`platform_connections.business_vertical`、`platform_authorizations.business_vertical`。
+- 新增 scheduler/worker 业态参数，并在取任务入口按 `business_vertical` 过滤。
 - 新增门店运营组织维表：`store_business_departments`、`store_operation_regions`、`store_region_assignments`，支撑 `/daily` 的业务部、区域、门店三级筛选。
 - 不新增平台码，`platform` 仍为 `meituan`、`dianping`、`douyin`。
 - 按本批 9 个样本暂定新增 9 个 `*_general_*` artifact type；如果后续确认格式一致，可回收为现有 artifact type + metadata。
@@ -840,7 +860,8 @@ FOR UPDATE SKIP LOCKED;
 ### Phase 2：表结构与导入
 
 - 复用现有 `store_traffic`、`product_detail`、`store_reviews`、`store_comments`、`store_rankings`、`douyin_transactions_detail`、`douyin_product_detail`、`douyin_review`。
-- 和用户确认数据口径后做字段对照：差异小则兼容现有表，差异大则新建业态专表；不改现有唯一键。
+- 实现到综专用美团/抖音 connector 路径，不把到综下载动作塞进现有到餐 connector 主流程。
+- 做字段对照：差异小则兼容现有表，差异大则新建业态专表；不改现有唯一键。
 - 实现美团 6 类 parser。
 - 实现抖音 3 类 parser。
 - 对金额、百分比、空值、`未上榜`、`-` 做统一 parse。
