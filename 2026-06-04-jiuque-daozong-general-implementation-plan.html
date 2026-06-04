@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>久雀到综独立数据面实施计划</title>
+  <style>
+    body { margin:0; background:#f6f7fb; color:#1f2937; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; line-height:1.65; }
+    .shell { max-width:1180px; margin:0 auto; padding:28px; }
+    .hero { background:#111827; color:#fff; border-radius:8px; padding:30px 34px; }
+    .hero h1 { margin:0 0 10px; font-size:32px; }
+    .hero p { margin:0; color:#d1d5db; }
+    .links { margin-top:18px; display:flex; flex-wrap:wrap; gap:10px; }
+    .links a { color:#fff; border:1px solid rgba(255,255,255,.28); padding:6px 10px; border-radius:999px; text-decoration:none; }
+    main { margin-top:18px; background:#fff; border:1px solid #d9dee8; border-radius:8px; padding:28px; }
+    h1,h2,h3,h4 { line-height:1.3; }
+    h1 { font-size:30px; } h2 { margin-top:30px; font-size:24px; border-bottom:1px solid #e5e7eb; padding-bottom:8px; } h3 { margin-top:24px; font-size:19px; }
+    table { width:100%; border-collapse:collapse; margin:14px 0 20px; font-size:13px; }
+    th,td { border:1px solid #d9dee8; padding:9px 10px; vertical-align:top; text-align:left; }
+    th { background:#f1f5f9; white-space:nowrap; }
+    code { background:#f1f5f9; border:1px solid #e2e8f0; border-radius:5px; padding:1px 5px; font-family:SFMono-Regular,Consolas,Menlo,monospace; font-size:12px; }
+    pre { background:#0f172a; color:#dbeafe; border-radius:8px; padding:14px 16px; overflow:auto; font-size:12px; }
+    pre code { background:transparent; border:none; padding:0; color:inherit; }
+    blockquote { margin:12px 0; padding:10px 14px; border-left:4px solid #2563eb; background:#eff6ff; color:#1e3a8a; }
+    li { margin:5px 0; }
+    a { color:#2563eb; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="hero">
+      <h1>久雀到综独立数据面实施计划</h1>
+      <p>共享控制面、独立 *_general_* 数据面、独立到综查询和页面层。</p>
+      <div class="links">
+        <a href="./2026-06-04-jiuque-daozong-general-implementation-plan.md">查看 Markdown</a>
+        <a href="./index.html">返回口径文档</a>
+      </div>
+    </header>
+    <main>
+<h1 id="久雀到综独立数据面实施计划">久雀到综独立数据面实施计划</h1>
+<blockquote>日期：2026-06-04</blockquote>
+<blockquote>适用仓库：<code>/Users/adonis/Desktop/code/OpsInsightHub</code></blockquote>
+<blockquote>设计文档仓库：<code>/private/tmp/jiuque-daozong-data-design-pages</code></blockquote>
+<blockquote>GitHub Pages HTML：<code>2026-06-04-jiuque-daozong-general-implementation-plan.html</code></blockquote>
+<blockquote>GitHub Pages Markdown：<code>2026-06-04-jiuque-daozong-general-implementation-plan.md</code></blockquote>
+<h2 id="0-总体决策">0. 总体决策</h2>
+<p>久雀到综按“共享控制面 + 独立数据面 + 独立查询/页面层”实现。</p>
+<table><thead><tr><th>层级</th><th>决策</th><th>说明</th></tr></thead><tbody>
+<tr><td>控制面</td><td>共享</td><td><code>stores</code>、用户、权限、订阅、<code>platform_connections</code>、<code>platform_authorizations</code>、业务部、区域、门店归属继续共用现有体系，通过 <code>business_vertical=&#x27;general&#x27;</code> 隔离</td></tr>
+<tr><td>数据面</td><td>全部拆开</td><td>9 个 Excel 全部进入 <code>*_general_*</code> 表，不再写入到餐现有事实表，避免字段语义、粒度和平台值污染</td></tr>
+<tr><td>查询层</td><td>单独写</td><td>到综 UI/UX 与到餐不同，新增 general query service/API，围绕 <code>/daily</code>、<code>/users</code>、<code>/monitor</code>、<code>/stores/[store]</code> 组织</td></tr>
+<tr><td>RPA/worker</td><td>平台共享，业态隔离</td><td>scheduler/BullMQ/浏览器 worker 可复用，但任务入口必须按 <code>business_vertical</code> 过滤，connector factory 按 <code>(platform, business_vertical)</code> 路由</td></tr>
+</tbody></table>
+<h2 id="1-本批-Excel-固定口径">1. 本批 Excel 固定口径</h2>
+<table><thead><tr><th>artifact_type</th><th>文件</th><th>行数</th><th>粒度</th><th>一期用途</th></tr></thead><tbody>
+<tr><td><code>meituan_general_review_stats_daily</code></td><td><code>评价数据-20260601-20260603-282358728-1780557847362178.xlsx</code></td><td>5,049</td><td>日期 x 门店，平台值为 <code>ALL</code></td><td>评价数、好评数、差评数、差评回复率</td></tr>
+<tr><td><code>meituan_general_review_comments</code></td><td><code>门店评价-2823587281780557898671.xlsx</code></td><td>309</td><td>评价明细</td><td>评价列表、星级、回复状态、文本分析</td></tr>
+<tr><td><code>meituan_general_product_traffic_daily</code></td><td><code>商品分析-20260601-20260603-282358728-1780557959003187.xlsx</code></td><td>39,730</td><td>日期 x 门店 x 商品，平台值为 <code>ALL</code></td><td>商品访问、下单、访购率、商品偏好</td></tr>
+<tr><td><code>meituan_general_transaction_type_daily</code></td><td><code>商品交易数据-20260601-20260603-282358728-178055800017962.xlsx</code></td><td>6</td><td>日期 x 商品类型，品牌级</td><td>品牌级团购/预订交易概览，不能用于单店</td></tr>
+<tr><td><code>meituan_general_store_traffic_daily</code></td><td><code>客流数据-20260601-20260603-282358728-178055801869749.xlsx</code></td><td>5,049</td><td>日期 x 门店</td><td>曝光、访问、意向、下单、收藏、打卡</td></tr>
+<tr><td><code>meituan_general_ranking_daily</code></td><td><code>榜单数据_仅展示上榜门店-20260601-20260603-282358728-1780558040174106.xlsx</code></td><td>26,569</td><td>日期 x 门店 x 榜单</td><td>城市/行政区/商圈排名监控</td></tr>
+<tr><td><code>douyin_general_review_comments</code></td><td><code>门店评价_全部门店_2026_06_01-2026_06_03.xlsx</code></td><td>649</td><td>评价明细</td><td>评价列表、评分、回复状态</td></tr>
+<tr><td><code>douyin_general_transaction_daily</code></td><td><code>交易_20260604.xlsx</code></td><td>8,891</td><td>日期 x 门店 x 商品 x 交易体裁</td><td>核销金额、核销券数、意向成交、退款、渠道分析</td></tr>
+<tr><td><code>douyin_general_product_daily</code></td><td><code>商品_20260604.xlsx</code></td><td>38,783</td><td>日期 x 商品 x 投放渠道，无门店 ID</td><td>品牌商品流量、直播/短视频/达人指标，不能伪造成单店商品流量</td></tr>
+</tbody></table>
+<h2 id="2-目标架构">2. 目标架构</h2>
+<pre><code class="language-text">platform_connections / stores / users / permissions
+  -&gt; shared control plane, filtered by business_vertical=&#x27;general&#x27;
+
+collection_runs / collection_artifacts
+  -&gt; shared artifact log, metadata.business_vertical=&#x27;general&#x27;
+
+*_general_* source tables
+  -&gt; exact Excel grain + header_hash + raw_row + parse warnings
+
+apps/main/lib/jiuque-general/*
+  -&gt; scope resolver + daily + monitor + users + store detail queries
+
+apps/main/app/api/jiuque-general/*
+  -&gt; API boundary for new Jiuque UI</code></pre>
+<h2 id="3-文件结构">3. 文件结构</h2>
+<h3 id="Database">Database</h3>
+<ul>
+<li>Create: <code>database/migrations/021_add_business_vertical_and_general_control_plane.sql</code></li>
+<li>Create: <code>database/migrations/022_add_jiuque_general_source_tables.sql</code></li>
+<li>Modify: <code>database/basic-store-schema.sql</code></li>
+<li>Modify: <code>database/rpa-connections-schema.sql</code></li>
+</ul>
+<h3 id="Worker">Worker</h3>
+<ul>
+<li>Create: <code>worker/src/parsers/general/excel.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/parse-utils.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/store-match.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/*-parser.ts</code></li>
+<li>Create: <code>worker/src/connectors/meituan-general.ts</code></li>
+<li>Create: <code>worker/src/connectors/douyin-general.ts</code></li>
+<li>Create: <code>worker/src/scripts/dry-run-general-artifacts.ts</code></li>
+<li>Modify: <code>worker/src/parsers/index.ts</code></li>
+<li>Modify: <code>worker/src/scheduler.ts</code></li>
+<li>Modify: <code>worker/src/index-browser.ts</code></li>
+</ul>
+<h3 id="Web-App">Web App</h3>
+<ul>
+<li>Create: <code>apps/main/lib/jiuque-general/types.ts</code></li>
+<li>Create: <code>apps/main/lib/jiuque-general/scope.ts</code></li>
+<li>Create: <code>apps/main/lib/jiuque-general/daily.ts</code></li>
+<li>Create: <code>apps/main/lib/jiuque-general/monitor.ts</code></li>
+<li>Create: <code>apps/main/lib/jiuque-general/users.ts</code></li>
+<li>Create: <code>apps/main/lib/jiuque-general/store-detail.ts</code></li>
+<li>Create: <code>apps/main/app/api/jiuque-general/*/route.ts</code></li>
+<li>Create: <code>apps/main/app/jiuque/*/page.tsx</code></li>
+</ul>
+<h2 id="4-Task-Plan">4. Task Plan</h2>
+<h3 id="Task-1-共享控制面业态隔离">Task 1: 共享控制面业态隔离</h3>
+<p><strong>目标：</strong> 给共享控制面补 <code>business_vertical</code>，让到餐和到综共用表但不混数据。</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>database/migrations/021_add_business_vertical_and_general_control_plane.sql</code></li>
+<li>Modify: <code>database/basic-store-schema.sql</code></li>
+<li>Modify: <code>database/rpa-connections-schema.sql</code></li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: 新增业态字段和索引。</li>
+</ul>
+<pre><code class="language-sql">ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT &#x27;dining&#x27;,
+  ADD CONSTRAINT stores_business_vertical_check
+    CHECK (business_vertical IN (&#x27;dining&#x27;, &#x27;general&#x27;));
+
+ALTER TABLE platform_connections
+  ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT &#x27;dining&#x27;,
+  ADD CONSTRAINT platform_connections_business_vertical_check
+    CHECK (business_vertical IN (&#x27;dining&#x27;, &#x27;general&#x27;));
+
+ALTER TABLE platform_authorizations
+  ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT &#x27;dining&#x27;,
+  ADD CONSTRAINT platform_authorizations_business_vertical_check
+    CHECK (business_vertical IN (&#x27;dining&#x27;, &#x27;general&#x27;));
+
+CREATE INDEX IF NOT EXISTS idx_stores_business_vertical ON stores(business_vertical);
+CREATE INDEX IF NOT EXISTS idx_platform_connections_platform_vertical
+  ON platform_connections(platform, business_vertical, connection_status);</code></pre>
+<ul>
+<li><input type="checkbox" disabled> Step 2: 新增业务部、区域、门店归属表。</li>
+</ul>
+<pre><code class="language-sql">CREATE TABLE IF NOT EXISTS store_business_departments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
+  customer_code VARCHAR(64) NOT NULL DEFAULT &#x27;jiuque&#x27;,
+  business_vertical VARCHAR(32) NOT NULL DEFAULT &#x27;general&#x27;
+    CHECK (business_vertical IN (&#x27;dining&#x27;, &#x27;general&#x27;)),
+  department_name VARCHAR(100) NOT NULL,
+  department_code VARCHAR(64),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT &#x27;active&#x27;
+    CHECK (status IN (&#x27;active&#x27;, &#x27;disabled&#x27;)),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(customer_code, business_vertical, department_name)
+);
+
+CREATE TABLE IF NOT EXISTS store_operation_regions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  department_id UUID NOT NULL REFERENCES store_business_departments(id) ON DELETE CASCADE,
+  parent_region_id UUID REFERENCES store_operation_regions(id) ON DELETE SET NULL,
+  region_name VARCHAR(100) NOT NULL,
+  region_code VARCHAR(64),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT &#x27;active&#x27;
+    CHECK (status IN (&#x27;active&#x27;, &#x27;disabled&#x27;)),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(department_id, region_name)
+);
+
+CREATE TABLE IF NOT EXISTS store_region_assignments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  region_id UUID NOT NULL REFERENCES store_operation_regions(id) ON DELETE CASCADE,
+  valid_from DATE NOT NULL DEFAULT CURRENT_DATE,
+  valid_to DATE,
+  is_primary BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (valid_to IS NULL OR valid_to &gt;= valid_from),
+  UNIQUE(store_id, region_id, valid_from)
+);</code></pre>
+<ul>
+<li><input type="checkbox" disabled> Step 3: 验证。</li>
+</ul>
+<pre><code class="language-bash">cd worker
+npm test -- test/integration/migrations.test.ts</code></pre>
+<p>Expected: 现有到餐数据默认 <code>dining</code>，新建久雀连接可写 <code>general</code>。</p>
+<h3 id="Task-2-新增九张-_general_-source-表">Task 2: 新增九张 <code>*_general_*</code> source 表</h3>
+<p><strong>目标：</strong> 9 个 Excel 全量进入到综 source 表，不写到餐事实表。</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>database/migrations/022_add_jiuque_general_source_tables.sql</code></li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: 所有 source 表必须包含审计字段。</li>
+</ul>
+<pre><code class="language-sql">source_run_id UUID REFERENCES collection_runs(id) ON DELETE SET NULL,
+source_connection_id UUID REFERENCES platform_connections(id) ON DELETE SET NULL,
+source_artifact_id UUID REFERENCES collection_artifacts(id) ON DELETE SET NULL,
+source_file_name TEXT,
+header_hash VARCHAR(64),
+grain VARCHAR(64) NOT NULL,
+raw_row JSONB NOT NULL DEFAULT &#x27;{}&#x27;::jsonb,
+parse_warnings JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+needs_store_review BOOLEAN NOT NULL DEFAULT false,
+created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+updated_at TIMESTAMPTZ NOT NULL DEFAULT now()</code></pre>
+<ul>
+<li><input type="checkbox" disabled> Step 2: 建表清单。</li>
+</ul>
+<pre><code class="language-text">meituan_general_review_stats_daily
+meituan_general_review_comments
+meituan_general_product_traffic_daily
+meituan_general_transaction_type_daily
+meituan_general_store_traffic_daily
+meituan_general_ranking_daily
+douyin_general_review_comments
+douyin_general_transaction_daily
+douyin_general_product_daily</code></pre>
+<ul>
+<li><input type="checkbox" disabled> Step 3: 唯一键规则。</li>
+</ul>
+<table><thead><tr><th>Table</th><th>Unique key</th></tr></thead><tbody>
+<tr><td><code>meituan_general_review_stats_daily</code></td><td><code>(source_connection_id, stat_date, platform_store_id)</code></td></tr>
+<tr><td><code>meituan_general_review_comments</code></td><td><code>(source_connection_id, platform_comment_id)</code></td></tr>
+<tr><td><code>meituan_general_product_traffic_daily</code></td><td><code>(source_connection_id, stat_date, platform_store_id, product_id)</code></td></tr>
+<tr><td><code>meituan_general_transaction_type_daily</code></td><td><code>(source_connection_id, stat_date, product_type)</code></td></tr>
+<tr><td><code>meituan_general_store_traffic_daily</code></td><td><code>(source_connection_id, stat_date, platform_store_id)</code></td></tr>
+<tr><td><code>meituan_general_ranking_daily</code></td><td><code>(source_connection_id, stat_date, platform_store_id, source_platform, ranking_name, ranking_city, ranking_district, ranking_business_district)</code></td></tr>
+<tr><td><code>douyin_general_review_comments</code></td><td><code>(source_connection_id, platform_review_id)</code></td></tr>
+<tr><td><code>douyin_general_transaction_daily</code></td><td><code>(source_connection_id, stat_date, platform_store_id, product_id, transaction_type_level1, transaction_type_level2)</code></td></tr>
+<tr><td><code>douyin_general_product_daily</code></td><td><code>(source_connection_id, stat_date, product_id, channel)</code></td></tr>
+</tbody></table>
+<ul>
+<li><input type="checkbox" disabled> Step 4: 验证。</li>
+</ul>
+<pre><code class="language-bash">npm run type-check
+cd worker &amp;&amp; npm test -- test/integration/migrations.test.ts</code></pre>
+<p>Expected: migration test passes.</p>
+<h3 id="Task-3-通用-Excel-parser-基础设施">Task 3: 通用 Excel parser 基础设施</h3>
+<p><strong>目标：</strong> 所有到综 parser 使用同一套 strict reader、header sentinel、字段解析和门店匹配。</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>worker/src/parsers/general/excel.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/parse-utils.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/store-match.ts</code></li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: 实现 Excel 读取结果。</li>
+</ul>
+<pre><code class="language-ts">export interface ExcelReadResult {
+  sheetName: string
+  headers: string[]
+  headerHash: string
+  rows: Array&lt;Record&lt;string, unknown&gt;&gt;
+}</code></pre>
+<ul>
+<li><input type="checkbox" disabled> Step 2: 实现 <code>assertHeaders(actual, expected, artifactType)</code>。</li>
+</ul>
+<p>Required behavior: 缺列返回 <code>COLUMN_DRIFT</code>，不允许按列序静默解析。</p>
+<ul>
+<li><input type="checkbox" disabled> Step 3: 实现 parse helper。</li>
+</ul>
+<pre><code class="language-text">parseDateDay
+parseInteger
+parseDecimal
+parsePercent
+parseChineseBoolean
+parseStarRating
+normalizeBlank
+stableHash</code></pre>
+<ul>
+<li><input type="checkbox" disabled> Step 4: 实现严格门店匹配。</li>
+</ul>
+<p>匹配顺序：平台门店 ID、<code>platform_connection_stores</code>、同城市标准化门店名；仍未命中则 <code>needs_store_review=true</code>。禁止 fallback 到任意门店。</p>
+<h3 id="Task-4-美团-6-个-parser">Task 4: 美团 6 个 parser</h3>
+<p><strong>目标：</strong> 导入美团经营宝 6 个 Excel。</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>worker/src/parsers/general/meituan-review-stats-parser.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/meituan-review-comments-parser.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/meituan-product-traffic-parser.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/meituan-transaction-type-parser.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/meituan-store-traffic-parser.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/meituan-ranking-parser.ts</code></li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: 每个 parser 固定 2026-06-01 到 2026-06-03 样本 header。</li>
+<li><input type="checkbox" disabled> Step 2: <code>商品交易数据</code> 强制标记 <code>grain=&#x27;brand_date_product_type&#x27;</code>，不能作为单店数据。</li>
+<li><input type="checkbox" disabled> Step 3: <code>商品分析</code> 保留 <code>source_platform=&#x27;ALL&#x27;</code>，页面展示为“点评+美团”。</li>
+<li><input type="checkbox" disabled> Step 4: <code>榜单数据</code> 保留一店一天多榜单明细，不压成 <code>store_rankings</code> 宽表。</li>
+<li><input type="checkbox" disabled> Step 5: dry-run 预期行数：<code>5049, 309, 39730, 6, 5049, 26569</code>。</li>
+</ul>
+<h3 id="Task-5-抖音-3-个-parser">Task 5: 抖音 3 个 parser</h3>
+<p><strong>目标：</strong> 导入抖音来客 3 个 Excel。</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>worker/src/parsers/general/douyin-review-comments-parser.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/douyin-transaction-parser.ts</code></li>
+<li>Create: <code>worker/src/parsers/general/douyin-product-parser.ts</code></li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: <code>douyin_general_review_comments</code> 用 <code>门店ID + 评价时间 + 用户昵称 + 文本内容 hash</code> 生成稳定 <code>platform_review_id</code>。</li>
+<li><input type="checkbox" disabled> Step 2: <code>douyin_general_transaction_daily</code> 按门店、商品、交易体裁导入。</li>
+<li><input type="checkbox" disabled> Step 3: <code>douyin_general_product_daily</code> 保持品牌/商品/渠道粒度，<code>store_id=null</code>。</li>
+<li><input type="checkbox" disabled> Step 4: 文件表头为 <code>周</code> 时返回 <code>UNSUPPORTED_PERIOD</code>。</li>
+<li><input type="checkbox" disabled> Step 5: dry-run 预期行数：<code>649, 8891, 38783</code>。</li>
+</ul>
+<h3 id="Task-6-parser-路由与-dry-run-CLI">Task 6: parser 路由与 dry-run CLI</h3>
+<p><strong>Goal:</strong> route general artifacts and validate all nine files before writing DB rows.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Modify: <code>worker/src/parsers/index.ts</code></li>
+<li>Create: <code>worker/src/scripts/dry-run-general-artifacts.ts</code></li>
+<li>Modify: <code>worker/package.json</code></li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: 路由 9 个 artifact type 到 <code>parseGeneralArtifact</code>。</li>
+<li><input type="checkbox" disabled> Step 2: 添加 <code>npm run dry-run:general</code>。</li>
+<li><input type="checkbox" disabled> Step 3: 跑 9 个样本，输出 <code>artifact_type / row_count / header_hash / grain / warnings</code>。</li>
+</ul>
+<pre><code class="language-bash">cd worker
+npm run dry-run:general -- /Users/adonis/Downloads/评价数据-20260601-20260603-282358728-1780557847362178.xlsx /Users/adonis/Downloads/门店评价-2823587281780557898671.xlsx /Users/adonis/Downloads/商品分析-20260601-20260603-282358728-1780557959003187.xlsx /Users/adonis/Downloads/商品交易数据-20260601-20260603-282358728-178055800017962.xlsx /Users/adonis/Downloads/客流数据-20260601-20260603-282358728-178055801869749.xlsx /Users/adonis/Downloads/榜单数据_仅展示上榜门店-20260601-20260603-282358728-1780558040174106.xlsx /Users/adonis/Downloads/门店评价_全部门店_2026_06_01-2026_06_03.xlsx /Users/adonis/Downloads/交易_20260604.xlsx /Users/adonis/Downloads/商品_20260604.xlsx</code></pre>
+<p>Expected: no <code>COLUMN_DRIFT</code>.</p>
+<h3 id="Task-7-Worker-业态隔离">Task 7: Worker 业态隔离</h3>
+<p><strong>Goal:</strong> dining/general worker 不能互相取任务。</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Modify: <code>worker/src/scheduler.ts</code></li>
+<li>Modify: <code>worker/src/index-browser.ts</code></li>
+<li>Modify: <code>worker/src/scheduler/reschedule-after-run.ts</code> if needed</li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: <code>WORKER_BUSINESS_VERTICAL=dining|general</code> 必填。</li>
+</ul>
+<pre><code class="language-ts">const workerBusinessVertical = process.env.WORKER_BUSINESS_VERTICAL
+if (workerBusinessVertical !== &#x27;dining&#x27; &amp;&amp; workerBusinessVertical !== &#x27;general&#x27;) {
+  throw new Error(&#x27;WORKER_BUSINESS_VERTICAL must be dining or general&#x27;)
+}</code></pre>
+<ul>
+<li><input type="checkbox" disabled> Step 2: pending auth 和 scheduled SELECT 都加 <code>pc.business_vertical = $1</code>。</li>
+<li><input type="checkbox" disabled> Step 3: worker-browser 加载连接后二次校验 vertical。</li>
+<li><input type="checkbox" disabled> Step 4: 跑隔离测试。</li>
+</ul>
+<pre><code class="language-bash">cd worker
+npm test -- test/integration/dispatcher.test.ts test/integration/assignWorker.test.ts</code></pre>
+<h3 id="Task-8-到综-connector">Task 8: 到综 connector</h3>
+<p><strong>Goal:</strong> 到综下载动作进入独立 connector，不塞进现有到餐 connector。</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>worker/src/connectors/meituan-general.ts</code></li>
+<li>Create: <code>worker/src/connectors/douyin-general.ts</code></li>
+<li>Modify: <code>worker/src/index-browser.ts</code></li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: connector factory 改为 <code>(platform, business_vertical)</code> 路由。</li>
+<li><input type="checkbox" disabled> Step 2: <code>MeituanGeneralConnector</code> 产出 6 个美团 artifact。</li>
+<li><input type="checkbox" disabled> Step 3: <code>DouyinGeneralConnector</code> 产出 3 个抖音 artifact。</li>
+<li><input type="checkbox" disabled> Step 4: 每个 artifact 写入 <code>metadata.business_vertical=&#x27;general&#x27;</code>、<code>period_type=&#x27;day&#x27;</code>、<code>source_grain</code>。</li>
+</ul>
+<h3 id="Task-9-到综-query-service">Task 9: 到综 query service</h3>
+<p><strong>Goal:</strong> 单独服务久雀 UI，不复用到餐 report builder 查询。</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>apps/main/lib/jiuque-general/types.ts</code></li>
+<li>Create: <code>apps/main/lib/jiuque-general/scope.ts</code></li>
+<li>Create: <code>apps/main/lib/jiuque-general/daily.ts</code></li>
+<li>Create: <code>apps/main/lib/jiuque-general/monitor.ts</code></li>
+<li>Create: <code>apps/main/lib/jiuque-general/users.ts</code></li>
+<li>Create: <code>apps/main/lib/jiuque-general/store-detail.ts</code></li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: scope resolver 按 <code>general -&gt; user access -&gt; department -&gt; region -&gt; store -&gt; date-valid assignment</code> 过滤。</li>
+<li><input type="checkbox" disabled> Step 2: <code>/daily</code> 返回总数据、平台卡片、数据可用性说明。</li>
+<li><input type="checkbox" disabled> Step 3: <code>/monitor</code> 只启用 Excel 支撑规则：营收下滑、曝光下滑、转化下降、退款异常、差评率、未回复、榜单下降。</li>
+<li><input type="checkbox" disabled> Step 4: <code>/users</code> 只返回弱信号，不能声明用户级留存/流失。</li>
+<li><input type="checkbox" disabled> Step 5: <code>/stores/[storeId]</code> 对品牌级 source 返回 <code>unsupported_for_store</code>。</li>
+</ul>
+<h3 id="Task-10-到综-API-routes">Task 10: 到综 API routes</h3>
+<p><strong>Goal:</strong> 暴露新 query service。</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>apps/main/app/api/jiuque-general/daily/route.ts</code></li>
+<li>Create: <code>apps/main/app/api/jiuque-general/monitor/route.ts</code></li>
+<li>Create: <code>apps/main/app/api/jiuque-general/users/route.ts</code></li>
+<li>Create: <code>apps/main/app/api/jiuque-general/stores/[storeId]/route.ts</code></li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: 复用现有 session/auth/access-control pattern。</li>
+<li><input type="checkbox" disabled> Step 2: 校验 <code>startDate/endDate/departmentId/regionId/storeId</code>。</li>
+<li><input type="checkbox" disabled> Step 3: 测试 owner/admin/child user 权限和 <code>business_vertical=&#x27;general&#x27;</code> 过滤。</li>
+</ul>
+<h3 id="Task-11-久雀页面">Task 11: 久雀页面</h3>
+<p><strong>Goal:</strong> 做新业态 UI，不复制到餐页面结构。</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>apps/main/app/jiuque/daily/page.tsx</code></li>
+<li>Create: <code>apps/main/app/jiuque/monitor/page.tsx</code></li>
+<li>Create: <code>apps/main/app/jiuque/users/page.tsx</code></li>
+<li>Create: <code>apps/main/app/jiuque/stores/[storeId]/page.tsx</code></li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: <code>/jiuque/daily</code>：业务部/区域/门店筛选、总数据、平台卡片、覆盖说明。</li>
+<li><input type="checkbox" disabled> Step 2: <code>/jiuque/monitor</code>：风险总览、规则分类、门店风险列表、证据抽屉。</li>
+<li><input type="checkbox" disabled> Step 3: <code>/jiuque/users</code>：新客弱信号、商品包型偏好、渠道偏好、不支持生命周期说明。</li>
+<li><input type="checkbox" disabled> Step 4: <code>/jiuque/stores/[storeId]</code>：单店 KPI、渠道、商品、评价、榜单、不支持包间/用户模块说明。</li>
+</ul>
+<h3 id="Task-12-验收与观测">Task 12: 验收与观测</h3>
+<p><strong>Goal:</strong> parser、worker、query、UI 有可验证闭环。</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Modify: <code>worker/src/parsers/index.ts</code></li>
+<li>Create: <code>apps/main/lib/jiuque-general/coverage.ts</code></li>
+<li>Create: <code>apps/main/app/api/jiuque-general/coverage/route.ts</code></li>
+</ul>
+<ul>
+<li><input type="checkbox" disabled> Step 1: artifact parse metadata 记录 <code>header_hash</code>、<code>parsed_rows</code>、<code>inserted_rows</code>、<code>grain</code>。</li>
+<li><input type="checkbox" disabled> Step 2: coverage endpoint 返回每个指标 <code>supported/partial/unsupported</code> 和原因。</li>
+<li><input type="checkbox" disabled> Step 3: 全量验证。</li>
+</ul>
+<pre><code class="language-bash">npm run lint
+npm run type-check
+npm test
+cd worker &amp;&amp; npm test</code></pre>
+<h2 id="5-验收标准">5. 验收标准</h2>
+<ol>
+<li>9 个 Excel dry-run 行数准确，header hash 稳定。</li>
+<li><code>*_general_*</code> parser 不写任何到餐事实表。</li>
+<li>所有 API/query 都过滤 <code>business_vertical=&#x27;general&#x27;</code>。</li>
+<li>品牌级文件不展示成单店事实。</li>
+<li>worker 入口按 <code>WORKER_BUSINESS_VERTICAL</code> 隔离。</li>
+<li>页面明确显示 unsupported 指标，不伪造包间、翻台、用户生命周期。</li>
+<li>重复导入同一 artifact 幂等。</li>
+</ol>
+<h2 id="6-延后范围">6. 延后范围</h2>
+<ul>
+<li>包间数、房型、房态、包间使用率。</li>
+<li>翻台率、单包间产值。</li>
+<li>用户级留存、流失、生命周期和用户列表。</li>
+<li>私域好友、企微触达。</li>
+<li>设备合规、运营执行、财务、回本周期。</li>
+</ul>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,16 +1,18 @@
 # 久雀到综数据口径与开发文档
 
-> 日期：2026-05-29  
-> 客户：久雀  
-> 业务线：到综 / 到店综合 / 棋牌茶楼  
-> demo：https://jiuque.jingyingcanmou.cn/  
+> 日期：2026-06-04
+> 客户：久雀
+> 业务线：到综 / 到店综合 / 棋牌茶楼
+> demo：https://jiuque.jingyingcanmou.cn/
 > 依据：9 张后台截图 + 9 个实际下载 Excel 样本
 
 ## 0. 结论
 
-久雀一期范围已确认：只接入美团经营宝和抖音来客的 Excel 可下载数据。本批样本已经足够启动一期 parser、数据表设计和 RPA 下载链路；美团经营宝侧可以覆盖门店客流、商品访问、商品交易、评价汇总、评价明细、榜单，抖音来客侧可以覆盖交易、商品、评价明细。
+久雀一期范围已确认：只接入美团经营宝和抖音来客的 Excel 可下载数据。本批样本已经足够启动一期 parser、数据表设计和 RPA 下载链路；美团经营宝侧覆盖门店客流、商品访问、品牌级商品交易、评价汇总、评价明细、榜单，抖音来客侧覆盖交易、商品、评价明细。
 
-架构结论：不为久雀单独新建一套数据库；共享现有 PostgreSQL，但先新增 `business_vertical` 业态维度。`meituan`、`dianping`、`douyin` 继续作为平台维度；“到店综合”不新增为平台，不再设计综合平台码。connector 需要到综专用采集路径，scheduler 可以复用现有服务，但取任务入口必须按业态过滤。
+架构结论更新为“共享控制面 + 独立数据面 + 独立查询/页面层”：不为久雀单独新建数据库；`stores`、用户、权限、订阅、`platform_connections`、`platform_authorizations`、业务部、区域、门店归属继续共用现有体系，通过 `business_vertical='general'` 隔离。9 个 Excel 全部进入 `*_general_*` 到综 source 表，不再写入到餐现有事实表，避免字段语义、粒度和平台值污染。
+
+到综查询层和页面层单独建设，不复用到餐 report builder 查询。`platform` 仍保持 `meituan`、`dianping`、`douyin`；“到店综合”不新增平台码。connector 需要到综专用采集路径，scheduler/BullMQ/浏览器 worker 可以复用，但取任务入口必须按 `business_vertical` 过滤。
 
 一期建议建设“平台 Excel 经营看板”，覆盖 demo 的日常数据跟进、平台数据卡片、部分异常监控。demo 中的单包间产值、翻台率、私域好友、用户标签、用户列表、设备合规、回本周期，不能从本批美团/抖音 Excel 直接得到，需要二期接入小程序/POS/房型/会员/企微/财务数据。
 
@@ -20,15 +22,15 @@
 
 | 图号 | 平台 | 后台入口 | 下载动作 | Excel 样本 | 行数 | 数据粒度 | 建议 artifact_type |
 | --- | --- | --- | --- | --- | ---: | --- | --- |
-| Image #1 | 美团经营宝 | 经营参谋 > 评价分析 > 评价概览 | 下载明细表格 | `/Users/adonis/Downloads/评价数据-20260526-20260528-282358728-1780037217695339.xlsx` | 5,061 | 日期 x 门店 | `meituan_general_review_stats_daily` |
-| Image #2 | 美团经营宝 | 评价管理 > 门店评价 > 评价明细 | 下载评论 | `/Users/adonis/Downloads/门店评价-2823587281780037356972.xlsx` | 279 | 评价明细 | `meituan_general_review_comments` |
-| Image #3 | 美团经营宝 | 经营参谋 > 商品分析 | 下载明细 | `/Users/adonis/Downloads/商品分析-20260526-20260528-282358728-1780037485558215.xlsx` | 41,655 | 日期 x 门店 x 商品 | `meituan_general_product_traffic` |
-| Image #4 | 美团经营宝 | 经营参谋 > 交易分析 | 下载明细表格 | `/Users/adonis/Downloads/商品交易数据-20260526-20260528-282358728-1780037645844689.xlsx` | 16,962 | 日期 x 门店 x 商品 | `meituan_general_product_transaction` |
-| Image #5 | 美团经营宝 | 经营参谋 > 客流分析 > 客流概览 | 下载明细表格 | `/Users/adonis/Downloads/客流数据-20260522-20260528-282358728-1780037925110274.xlsx` | 11,809 | 日期 x 门店 | `meituan_general_store_traffic` |
-| Image #6 | 美团经营宝 | 经营参谋 > 榜单分析 | 导出榜单明细 | `/Users/adonis/Downloads/榜单数据_仅展示上榜门店-20260526-20260528-282358728-178003805511437.xlsx` | 26,421 | 日期 x 门店 x 榜单 | `meituan_general_ranking` |
-| Image #7 | 抖音来客 | 店铺管理 > 评价管理 | 右上角导出，弹窗选择门店和评价时间 | `/Users/adonis/Downloads/门店评价_全部门店_2026_05_26-2026_05_28.xlsx` | 802 | 评价明细 | `douyin_general_review` |
-| Image #8 | 抖音来客 | 报表集市 > 报表下载 > 交易 | 交易 tab 导出，汇总方式选“按日” | `/Users/adonis/Downloads/2026_05_28_交易 (1).xlsx` | 16,820 | 日期 x 门店 x 商品 x 交易体裁 | `douyin_general_transaction` |
-| Image #9 | 抖音来客 | 报表集市 > 报表下载 > 商品 | 商品 tab 导出，汇总方式选“按日” | `/Users/adonis/Downloads/2026_05_28_商品 (1).xlsx` | 27,224 | 日期 x 商品 x 投放渠道 | `douyin_general_product` |
+| Image #1 | 美团经营宝 | 经营参谋 > 评价分析 > 评价概览 | 下载明细表格 | `/Users/adonis/Downloads/评价数据-20260601-20260603-282358728-1780557847362178.xlsx` | 5,049 | 日期 x 门店，平台值为 `ALL` | `meituan_general_review_stats_daily` |
+| Image #2 | 美团经营宝 | 评价管理 > 门店评价 > 评价明细 | 下载评论 | `/Users/adonis/Downloads/门店评价-2823587281780557898671.xlsx` | 309 | 评价明细 | `meituan_general_review_comments` |
+| Image #3 | 美团经营宝 | 经营参谋 > 商品分析 | 下载明细 | `/Users/adonis/Downloads/商品分析-20260601-20260603-282358728-1780557959003187.xlsx` | 39,730 | 日期 x 门店 x 商品，平台值为 `ALL` | `meituan_general_product_traffic_daily` |
+| Image #4 | 美团经营宝 | 经营参谋 > 交易分析 | 下载明细表格 | `/Users/adonis/Downloads/商品交易数据-20260601-20260603-282358728-178055800017962.xlsx` | 6 | 日期 x 商品类型，品牌级 | `meituan_general_transaction_type_daily` |
+| Image #5 | 美团经营宝 | 经营参谋 > 客流分析 > 客流概览 | 下载明细表格 | `/Users/adonis/Downloads/客流数据-20260601-20260603-282358728-178055801869749.xlsx` | 5,049 | 日期 x 门店 | `meituan_general_store_traffic_daily` |
+| Image #6 | 美团经营宝 | 经营参谋 > 榜单分析 | 导出榜单明细 | `/Users/adonis/Downloads/榜单数据_仅展示上榜门店-20260601-20260603-282358728-1780558040174106.xlsx` | 26,569 | 日期 x 门店 x 榜单 | `meituan_general_ranking_daily` |
+| Image #7 | 抖音来客 | 店铺管理 > 评价管理 | 右上角导出，弹窗选择门店和评价时间 | `/Users/adonis/Downloads/门店评价_全部门店_2026_06_01-2026_06_03.xlsx` | 649 | 评价明细 | `douyin_general_review_comments` |
+| Image #8 | 抖音来客 | 报表集市 > 报表下载 > 交易 | 交易 tab 导出，汇总方式选“按日” | `/Users/adonis/Downloads/交易_20260604.xlsx` | 8,891 | 日期 x 门店 x 商品 x 交易体裁 | `douyin_general_transaction_daily` |
+| Image #9 | 抖音来客 | 报表集市 > 报表下载 > 商品 | 商品 tab 导出，汇总方式选“按日” | `/Users/adonis/Downloads/商品_20260604.xlsx` | 38,783 | 日期 x 商品 x 投放渠道，无门店 ID | `douyin_general_product_daily` |
 
 关键限制：
 
@@ -58,7 +60,7 @@ Excel 表头：
 
 入库建议：
 
-- 复用表：`store_reviews`
+- 到综 source 表：`meituan_general_review_stats_daily`；不写入到餐 `store_reviews`。
 - 周期：按 `date` 日粒度入库，周期元信息写入 artifact metadata。
 - 唯一键：沿用现有 `UNIQUE(store_id, date, platform)`。
 - 口径：`platform` 保持 `meituan` / `dianping`，业态从 `stores.business_vertical='general'` 或连接继承。
@@ -84,7 +86,7 @@ Excel 表头：
 
 入库建议：
 
-- 复用表：`store_comments`
+- 到综 source 表：`meituan_general_review_comments`；不写入到餐 `store_comments`。
 - 星级：`5.0星` 解析为 `5.0`
 - 子评分：`服务:3.5, 设施:4.5, 划算:3.5` 分别映射到 `service_score`、`environment_score` 等现有字段；`划算` 没有稳定字段时原文进 `raw_data`。
 - 去重：没有稳定评价 ID，使用内容 hash 生成 `platform_comment_id`。
@@ -110,7 +112,7 @@ Excel 表头：
 
 入库建议：
 
-- 复用表：`product_detail`
+- 到综 source 表：`meituan_general_product_traffic_daily`；不写入到餐 `product_detail`。
 - 周期：按 `date` 日粒度入库，周期元信息写入 artifact metadata。
 - 唯一键：沿用现有 `UNIQUE(store_id, date, platform, product_id)`。
 - 注意：样例中存在大量空值，parser 需要把空字符串解析为 null/0，不能抛错。
@@ -137,7 +139,7 @@ Excel 表头：
 
 入库建议：
 
-- 复用表：`product_detail`，必要时按门店日聚合回写 `store_transactions` / `refunds`
+- 到综 source 表：`meituan_general_product_traffic_daily`；不写入到餐 `product_detail`。，必要时按门店日聚合回写 `store_transactions` / `refunds`
 - 查询口径：按 `business_vertical='general'` 过滤，不新增综合平台
 - 默认营业额口径：`核销金额`
 - GMV 备用口径：`下单金额`
@@ -165,7 +167,7 @@ Excel 表头：
 
 入库建议：
 
-- 复用表：`store_traffic`
+- 到综 source 表：`meituan_general_store_traffic_daily`；不写入到餐 `store_traffic`。
 - `门店ID` 在本表未区分美团/点评，入库时先通过 artifact 平台和门店映射确认 `stores.id`。
 - `留资人数` 可作为 demo 里“线索/咨询”类指标的候选来源。
 
@@ -192,7 +194,7 @@ Excel 表头：
 
 入库建议：
 
-- 复用表：`store_rankings`
+- 到综 source 表：`meituan_general_ranking_daily`；保留一店一天多榜单明细。
 - 排名字段允许文本：数字、`未上榜`、空值都要保留。
 - demo 默认展示商圈排名；如果商圈排名为 `未上榜`，降级展示行政区或城市排名。
 
@@ -215,7 +217,7 @@ Excel 表头：
 
 入库建议：
 
-- 复用表：`douyin_review`
+- 到综 source 表：`douyin_general_review_comments`；不写入现有到餐/抖音 review 表。
 - `推荐等级`：`5星` 解析为 `5.0`
 - 图片和视频内容可能是多 URL 换行字符串，先原样保存到 text 字段，后续再拆数组。
 - `评价来源` 样例为 `抖音团购`，可作为渠道字段。
@@ -243,7 +245,7 @@ Excel 表头：
 
 入库建议：
 
-- 复用表：`douyin_transactions_detail`
+- 到综 source 表：`douyin_general_transaction_daily`；按到综查询层独立消费。
 - 查询口径：按日导出、按日入库；如果导出结果是 `周` 字段，需要重新按日导出。
 - 周期：`period_type='day'`
 - `交易体裁(一级/二级)` 继续使用现有字段，用于渠道分析。
@@ -273,7 +275,7 @@ Excel 表头：
 
 入库建议：
 
-- 复用表：`douyin_product_detail`
+- 到综 source 表：`douyin_general_product_daily`；该样本无门店 ID，不能写入要求 `store_id` 的旧表。
 - 如果导出缺少门店维度，只能落品牌/商品层或进入待匹配队列，不能伪造成单店商品数据。
 - 直播、短视频、达人字段先入 JSONB，避免第一版表字段过宽。
 
@@ -416,26 +418,17 @@ Excel 表头：
 | R6 | 榜单下降 | 支撑 | 美团榜单数据 | 城市/行政区/商圈排名环比 | 优先展示和监控哪个榜单层级 |
 | R7 | 经营分、牌级 | 不支撑 | 当前 9 个平台 Excel 不提供 | 暂不可做 | 补导出入口或人工维护字段 |
 
-## 4. 入库模型设计
+## 4. 共享控制面与业态隔离
 
-### 4.1 修正后的建模原则
+### 4.1 最终边界
 
-现有项目里已经有两类成熟模型：
+到综不复制用户、权限、门店、连接、授权、订阅这些控制面表。控制面继续共享，靠 `business_vertical='general'` 隔离。
 
-1. `basic-store-schema.sql`：到店通用指标表，例如 `store_traffic`、`store_transactions`、`product_traffic`、`store_reviews`、`store_rankings`，字段是业务口径，带 `store_id + date + platform`。
-2. 平台专表：例如 `meituan_waimai_store_daily`、`taobao_shangou_store_daily`、`douyin_product_detail`、`douyin_review`，字段贴近平台导出，带 `connection_id + stat_date + 平台门店ID`，并保留 `raw_metrics/raw_data`。
+数据面全部拆开：9 个 Excel 全部进入 `*_general_*` source 表，不再写入到餐现有事实表。旧表可以作为字段命名和口径参考，但不是一期落库目标。
 
-结合当前参考意见，久雀到综不应复制一套“综合平台”，也不应为一期复制一套独立数据库。正确拆法是：
+查询层和页面层单独写：到综 UI/UX 与到餐完全不同，不能围绕到餐 report builder 拼字段。
 
-- `platform` 表示数据来源，继续使用现有 key：`meituan`、`dianping`、`douyin`。
-- `business_vertical` 表示业态，新增枚举：`dining` 到店餐饮，`general` 到店综合。
-- 到店餐饮和到店综合不会在同一个实体门店上共存，因此 `UNIQUE(store_id, date, platform)`、`UNIQUE(store_id, date, platform, product_id)` 等唯一键短期保持不变。
-- 一期只接美团经营宝和抖音来客 Excel，优先复用现有到店分析表；字段能映射的直接入现有表，字段差异先放 `raw_data` / `metadata` 或少量 nullable 字段中。
-- 后续如果确认到店综合字段结构长期明显不同，再新增 `in_store_general_store_daily`、`in_store_general_product_daily` 这类业态专表。
-
-### 4.2 新增业态字段
-
-建议新增 3 个字段，默认值先给 `dining`，保证现有数据行为不变：
+### 4.2 共享控制面字段
 
 ```sql
 ALTER TABLE stores
@@ -449,377 +442,101 @@ ALTER TABLE platform_connections
 ALTER TABLE platform_authorizations
   ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining'
   CHECK (business_vertical IN ('dining', 'general'));
-
-CREATE INDEX IF NOT EXISTS idx_stores_business_vertical
-  ON stores(business_vertical);
-
-CREATE INDEX IF NOT EXISTS idx_platform_connections_platform_vertical
-  ON platform_connections(platform, business_vertical, connection_status);
-
-CREATE INDEX IF NOT EXISTS idx_platform_authorizations_platform_vertical
-  ON platform_authorizations(platform, business_vertical, authorization_status);
 ```
 
-`stores.business_vertical` 是业务归属的最终判断；`platform_connections.business_vertical` 和 `platform_authorizations.business_vertical` 用于授权、采集和 parser 路由。创建连接时应从门店继承，品牌级连接则由用户选择。
+### 4.3 业务部、区域、门店归属
 
-### 4.3 platform 与 artifact
+`store_business_departments`、`store_operation_regions`、`store_region_assignments` 继续作为共享组织维度表，表内带 `business_vertical`。门店调区时通过 `valid_from/valid_to` 保留历史归属。
 
-`platform_connections.platform` 不新增 `meituan_general`、`douyin_general`。示例：
+## 5. 到综 `*_general_*` 数据模型
 
-```text
-platform='meituan', business_vertical='general'
-platform='dianping', business_vertical='general'
-platform='douyin', business_vertical='general'
-```
+### 5.1 建模原则
 
-兼容说明：`platform_connections.platform`、`platform_authorizations.platform` 使用英文平台 key；部分既有事实表历史上可能保存中文平台值，例如 `product_detail.platform='美团'/'点评'`。到综开发时不要新增 `meituan_general` 这类平台码；如果复用历史表，parser 和查询层需要做 `normalize_platform_key` 兼容，把 `美团 -> meituan`、`点评 -> dianping`、`抖音 -> douyin` 统一到平台 key 再比较。
+1. 每个 Excel 对应一张 source 表，保留 Excel 原始粒度。
+2. 所有 source 表带 `source_run_id`、`source_connection_id`、`source_artifact_id`、`source_file_name`、`header_hash`、`grain`、`raw_row`、`parse_warnings`、`needs_store_review`。
+3. 品牌级文件不伪造成单店数据。美团商品交易和抖音商品都可能 `store_id IS NULL`。
+4. 一店一天多榜单、多交易体裁、多商品渠道必须保留多行，不能压成旧宽表。
 
-artifact 命名分两类：
+### 5.2 source 表清单
 
-- 格式和到餐一致：继续使用现有 artifact type，例如 `meituan_overall`、`dianping_overall`、`meituan_dianping_review`、`douyin_review`、`douyin_transaction`、`douyin_product`，并在 `collection_artifacts.metadata.business_vertical='general'`。
-- 格式和到餐不同：使用带业态的 artifact type，例如本文 9 个样本建议使用 `meituan_general_*` / `douyin_general_*`，但 parser 入库时仍写 `platform='meituan'/'dianping'/'douyin'`。
-
-本文样本先按“格式不同”处理，避免误走现有到餐 parser：
-
-```text
-meituan_general_review_stats_daily
-meituan_general_review_comments
-meituan_general_product_traffic
-meituan_general_product_transaction
-meituan_general_store_traffic
-meituan_general_ranking
-douyin_general_review
-douyin_general_transaction
-douyin_general_product
-```
-
-### 4.4 复用表与字段落点
-
-| 样本 | 复用目标 | platform key / 事实表取值 | business_vertical | 说明 |
-| --- | --- | --- | --- | --- |
-| 美团评价汇总 | `store_reviews` | key 为 `meituan` / `dianping`；历史事实表兼容 `美团` / `点评` | `general` | `新增评价数`、`新增好评数`、`新增差评数`、`差评回复率` 可直接映射 |
-| 美团评价明细 | `store_comments` | key 为 `meituan` / `dianping`；历史事实表兼容 `美团` / `点评` | `general` | 无稳定评价 ID 时用内容 hash 生成 `platform_comment_id` |
-| 美团商品访问 | `product_detail` | key 为 `meituan` / `dianping`；历史事实表兼容 `美团` / `点评` | `general` | 商品 ID、售价、访问、下单、访购率、退款券数 |
-| 美团商品交易 | `product_detail`，必要时聚合到 `store_transactions` / `refunds` | key 为 `meituan` / `dianping`；历史事实表兼容 `美团` / `点评` | `general` | 下单、核销、退款字段按商品粒度保留 |
-| 美团客流 | `store_traffic` | key 为 `meituan` / `dianping`；历史事实表兼容 `美团` / `点评` | `general` | 曝光、访问、意向、下单、收藏、打卡 |
-| 美团榜单 | `store_rankings` | key 为 `meituan` / `dianping`；历史事实表兼容 `美团` / `点评` | `general` | 现有字段不足以表达多榜单明细时，先把原始榜单行放 `raw_data` |
-| 抖音评价 | `douyin_review` | `douyin` | `general` | 保留 AI/RPA 回复扩展空间 |
-| 抖音交易 | `douyin_transactions_detail` | `douyin` | `general` | RPA 选择“按日”导出；若文件出现 `周` 字段则重新导出 |
-| 抖音商品 | `douyin_product_detail` | `douyin` | `general` | 商品表缺门店维度时只能做品牌/商品层指标 |
-
-一期范围已确认只接美团经营宝和抖音来客 Excel。本阶段不为小程序、POS、订单、房态预建表；先对 9 个 Excel 做字段对照：
-
-1. 能稳定映射到现有字段的，直接写现有表。
-2. 差异较小、只是少量附加字段的，用现有表兼容。
-3. 差异明显、会让现有表语义变乱的，再新建业态专表。
-
-真正的隔离仍来自 `stores.business_vertical` 和 `platform_connections.business_vertical`，不是靠复制平台。
-
-### 4.5 门店运营组织维度
-
-demo 的日常数据页顶部有 `业务部 -> 区域 -> 门店` 三级筛选。这个维度不属于平台，也不属于业态；它是久雀内部的运营组织口径。建议单独建维表，不要把区域写进交易、客流、评价等事实表唯一键。
-
-推荐结构：
-
-```sql
-CREATE TABLE IF NOT EXISTS store_business_departments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
-  customer_code VARCHAR(64) NOT NULL DEFAULT 'jiuque',
-  business_vertical VARCHAR(32) NOT NULL DEFAULT 'general'
-    CHECK (business_vertical IN ('dining', 'general')),
-  department_name VARCHAR(100) NOT NULL,
-  department_code VARCHAR(64),
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  status VARCHAR(20) NOT NULL DEFAULT 'active'
-    CHECK (status IN ('active', 'disabled')),
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(customer_code, business_vertical, department_name)
-);
-
-CREATE TABLE IF NOT EXISTS store_operation_regions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  department_id UUID NOT NULL REFERENCES store_business_departments(id) ON DELETE CASCADE,
-  parent_region_id UUID REFERENCES store_operation_regions(id) ON DELETE SET NULL,
-  region_name VARCHAR(100) NOT NULL,
-  region_code VARCHAR(64),
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  status VARCHAR(20) NOT NULL DEFAULT 'active'
-    CHECK (status IN ('active', 'disabled')),
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(department_id, region_name)
-);
-
-CREATE TABLE IF NOT EXISTS store_region_assignments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-  region_id UUID NOT NULL REFERENCES store_operation_regions(id) ON DELETE CASCADE,
-  valid_from DATE NOT NULL DEFAULT CURRENT_DATE,
-  valid_to DATE,
-  is_primary BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CHECK (valid_to IS NULL OR valid_to >= valid_from),
-  UNIQUE(store_id, region_id, valid_from)
-);
-
-CREATE INDEX IF NOT EXISTS idx_store_region_assignments_store_date
-  ON store_region_assignments(store_id, valid_from, valid_to);
-
-CREATE INDEX IF NOT EXISTS idx_store_region_assignments_region
-  ON store_region_assignments(region_id);
-```
-
-口径说明：
-
-- `store_business_departments` 对应筛选器里的“业务部”。
-- `store_operation_regions` 对应筛选器里的“区域”，归属于业务部；如果以后有大区/小区层级，可用 `parent_region_id` 扩展。
-- `store_region_assignments` 是门店和区域的生效关系。门店调区时关闭旧记录 `valid_to`，新增一条新记录，历史报表按统计日期 join 对应区域。
-- `stores.province/city/business_district` 仍表示地理位置，不承担运营区域筛选。
-- 如果同一门店同一日期只能归属一个主区域，一期用应用层校验防重；后续需要强约束时再加 PostgreSQL exclusion constraint，避免出现重叠生效区间。
-
-按区域查询门店范围：
-
-```sql
-WITH scoped_stores AS (
-  SELECT DISTINCT sra.store_id
-  FROM store_region_assignments sra
-  JOIN store_operation_regions r ON r.id = sra.region_id
-  JOIN store_business_departments d ON d.id = r.department_id
-  WHERE d.business_vertical = 'general'
-    AND ($4::uuid IS NULL OR d.id = $4)
-    AND ($5::uuid IS NULL OR r.id = $5)
-    AND sra.valid_from <= $2::date
-    AND (sra.valid_to IS NULL OR sra.valid_to >= $1::date)
-)
-SELECT *
-FROM scoped_stores;
-```
-
-接口层筛选顺序：
-
-1. 先按 `business_vertical='general'` 限定到综门店。
-2. 再按业务部和区域算出 `store_id` 集合。
-3. 最后把 `store_id` 集合传给日常数据、用户分析、异常监控、单店深度分析查询。
-
-### 4.6 新建专表的判断边界
-
-一期默认先复用现有到店表。满足以下任一条件时，再新增业态专表：
-
-- 确认后的字段和现有表差异明显，强行兼容会让字段含义不稳定。
-- 到综需要长期展示的核心字段，在现有表中没有合理落点。
-- 榜单这类一门店一天多榜单、多区域、多分类的数据需要完整明细查询。
-- 同一实体在同一日期、同一平台下需要多行事实数据，现有唯一键无法表达。
-
-备选专表命名：
-
-```text
-in_store_general_store_daily
-in_store_general_product_daily
-in_store_general_review_detail
-in_store_general_ranking_daily
-```
-
-## 5. Parser 与字段映射
-
-### 5.1 artifact 路由
-
-Parser 路由按 `platform + business_vertical + artifact_type` 判断。平台只表示来源，业态决定走到餐逻辑还是到综逻辑。
-
-```ts
-const vertical = connection.business_vertical ?? 'dining'
-
-if (vertical === 'general') {
-  switch (artifactType) {
-    case 'meituan_general_review_stats_daily':
-    case 'meituan_general_review_comments':
-    case 'meituan_general_product_traffic':
-    case 'meituan_general_product_transaction':
-    case 'meituan_general_store_traffic':
-    case 'meituan_general_ranking':
-    case 'douyin_general_review':
-    case 'douyin_general_transaction':
-    case 'douyin_general_product':
-      return parseGeneralInStoreArtifact(...)
-  }
-}
-```
-
-如果未来确认某个到综 Excel 与现有到餐 artifact 完全一致，可以复用现有 artifact type，但必须在 `metadata.business_vertical='general'` 且 parser 分支里读 connection vertical。每个 parser 必须做表头 sentinel 校验；表头不匹配时返回 `COLUMN_DRIFT`，不要静默按错列导入。
-
-### 5.2 周期解析
-
-```text
-美团日期：YYYY-MM-DD -> period_type=day, period_start=period_end=日期
-抖音日期：YYYY-MM-DD -> period_type=day, period_start=period_end=日期
-```
-
-抖音交易和商品导出时必须选择“按日”。如果 parser 读到字段名 `周` 或值形如 `YYYY-MM-DD~YYYY-MM-DD`，不要伪造成日数据，应返回导出配置错误并提示重新导出。
-
-### 5.3 门店匹配
-
-优先级：
-
-1. `stores.meituan_store_id` / `stores.dianping_store_id` / `stores.douyin_store_id` 精确匹配。
-2. 同平台 store mapping 表匹配。
-3. 同城市 + 标准化门店名匹配。
-4. 无法匹配时创建候选门店，但标记 `metadata.needs_store_review=true`。
-
-标准化门店名时只去除全角/半角括号、空格、间隔号，不要去掉“久雀”“雀渝汇”等品牌词，否则不同品牌门店可能误合并。
-
-### 5.4 关键指标映射
-
-| normalized_metric_key | 美团字段 | 抖音字段 | 聚合 |
+| 表 | Excel | 粒度 | 关键限制 |
 | --- | --- | --- | --- |
-| `exposure_users` | 客流：曝光人数 | 商品：商品曝光人数 | sum |
-| `exposure_count` | 客流：曝光次数 | 商品：商品曝光次数 | sum |
-| `visit_users` | 客流：访问人数 / 商品：商品访问人数 | 商品：商品访问人数 | sum |
-| `visit_count` | 客流：访问次数 / 商品：商品访问次数 | 商品：商品访问次数 | sum |
-| `intent_users` | 客流：意向转化人数 | 交易：意向成交人数 | sum |
-| `order_users` | 交易：下单人数 | 交易：意向成交人数 | sum |
-| `order_voucher_count` | 交易：下单券数 | 交易：意向成交券数 | sum |
-| `order_amount` | 交易：下单金额 | 交易：意向成交金额 | sum |
-| `redeemed_users` | 交易：核销人数 | 交易：核销人数 | sum |
-| `redeemed_voucher_count` | 交易：核销券数 | 交易：核销券数 | sum |
-| `redeemed_amount` | 交易：核销金额 | 交易：核销金额 | sum |
-| `refund_voucher_count` | 交易：退款券数 | 交易：意向退款券数 | sum |
-| `refund_amount` | 交易：退款金额（原价） | 交易：意向退款金额 | sum |
-| `review_count` | 评价汇总：新增评价数 | 评价明细 count | sum |
-| `positive_review_count` | 评价汇总：新增好评数 | 推荐等级 >= 4星 | sum |
-| `negative_review_count` | 评价汇总：新增差评数 | 推荐等级 <= 2星 | sum |
-| `negative_reply_rate` | 评价汇总：差评回复率 | 明细计算 | weighted_avg |
-| `ranking_city_rank` | 榜单：城市排名 | 无 | latest |
+| `meituan_general_review_stats_daily` | 评价数据 | 日期 x 门店 | 平台值为 `ALL` |
+| `meituan_general_review_comments` | 门店评价 | 评价明细 | 无稳定评价 ID，需 hash |
+| `meituan_general_product_traffic_daily` | 商品分析 | 日期 x 门店 x 商品 | 平台值为 `ALL`，大量下单字段为空 |
+| `meituan_general_transaction_type_daily` | 商品交易数据 | 日期 x 商品类型 | 品牌级，无门店/商品列 |
+| `meituan_general_store_traffic_daily` | 客流数据 | 日期 x 门店 | 支撑美团/点评平台流量卡片 |
+| `meituan_general_ranking_daily` | 榜单数据 | 日期 x 门店 x 榜单 | 排名可为数字、`未上榜`、空 |
+| `douyin_general_review_comments` | 门店评价 | 评价明细 | 可按抖音门店 ID 匹配 |
+| `douyin_general_transaction_daily` | 交易 | 日期 x 门店 x 商品 x 交易体裁 | 支撑抖音单店交易和渠道 |
+| `douyin_general_product_daily` | 商品 | 日期 x 商品 x 投放渠道 | 无门店 ID，只能品牌/商品层 |
 
-## 6. Demo 查询设计
+### 5.3 唯一键
 
-### 6.1 总数据
+| 表 | 唯一键 |
+| --- | --- |
+| `meituan_general_review_stats_daily` | `(source_connection_id, stat_date, platform_store_id)` |
+| `meituan_general_review_comments` | `(source_connection_id, platform_comment_id)` |
+| `meituan_general_product_traffic_daily` | `(source_connection_id, stat_date, platform_store_id, product_id)` |
+| `meituan_general_transaction_type_daily` | `(source_connection_id, stat_date, product_type)` |
+| `meituan_general_store_traffic_daily` | `(source_connection_id, stat_date, platform_store_id)` |
+| `meituan_general_ranking_daily` | `(source_connection_id, stat_date, platform_store_id, source_platform, ranking_name, ranking_city, ranking_district, ranking_business_district)` |
+| `douyin_general_review_comments` | `(source_connection_id, platform_review_id)` |
+| `douyin_general_transaction_daily` | `(source_connection_id, stat_date, platform_store_id, product_id, transaction_type_level1, transaction_type_level2)` |
+| `douyin_general_product_daily` | `(source_connection_id, stat_date, product_id, channel)` |
 
-查询层必须同时过滤门店业态和连接业态，避免同平台到餐数据混入到综 demo。`/daily` 顶部的业务部、区域、门店筛选先通过 `store_region_assignments` 算出门店集合，再进入指标查询。
+## 6. Parser 与字段映射
 
-```sql
-WITH scoped_stores AS (
-  SELECT DISTINCT s.id AS store_id
-  FROM stores s
-  LEFT JOIN store_region_assignments sra
-    ON sra.store_id = s.id
-   AND sra.valid_from <= $2::date
-   AND (sra.valid_to IS NULL OR sra.valid_to >= $1::date)
-  LEFT JOIN store_operation_regions r ON r.id = sra.region_id
-  LEFT JOIN store_business_departments d ON d.id = r.department_id
-  WHERE s.business_vertical = 'general'
-    AND ($3::uuid[] IS NULL OR s.id = ANY($3::uuid[]))
-    AND ($4::uuid IS NULL OR d.id = $4::uuid)
-    AND ($5::uuid IS NULL OR r.id = $5::uuid)
-),
-connected_stores AS (
-  SELECT DISTINCT pcs.store_id, pc.platform
-  FROM platform_connection_stores pcs
-  JOIN platform_connections pc ON pc.id = pcs.connection_id
-  JOIN scoped_stores ss ON ss.store_id = pcs.store_id
-  WHERE TRUE
-    AND pc.business_vertical = 'general'
-    AND pc.platform = ANY(ARRAY['meituan', 'dianping', 'douyin'])
-),
-meituan_dianping_tx AS (
-  SELECT
-    SUM(product_verified_amount) AS revenue,
-    SUM(product_vouchers_verified) AS orders,
-    SUM(product_revenue_after) AS gmv
-  FROM product_detail pd
-  JOIN stores s ON s.id = pd.store_id
-  WHERE EXISTS (
-    SELECT 1
-    FROM connected_stores cs
-    WHERE cs.store_id = pd.store_id
-      AND cs.platform = CASE pd.platform
-        WHEN '美团' THEN 'meituan'
-        WHEN '点评' THEN 'dianping'
-        ELSE pd.platform
-      END
-  )
-    AND pd.platform IN ('meituan', 'dianping', '美团', '点评')
-    AND pd.date BETWEEN $1 AND $2
-),
-douyin_tx AS (
-  SELECT
-    SUM(redeemed_amount) AS revenue,
-    SUM(redeemed_voucher_count) AS orders,
-    SUM(intent_revenue) AS gmv
-  FROM douyin_transactions_detail dt
-  JOIN stores s ON s.id = dt.store_id
-  WHERE EXISTS (
-    SELECT 1
-    FROM connected_stores cs
-    WHERE cs.store_id = dt.store_id
-      AND cs.platform = 'douyin'
-  )
-    AND dt.date BETWEEN $1 AND $2
-)
-SELECT
-  COALESCE(meituan_dianping_tx.revenue, 0) + COALESCE(douyin_tx.revenue, 0) AS revenue,
-  COALESCE(meituan_dianping_tx.orders, 0) + COALESCE(douyin_tx.orders, 0) AS orders,
-  COALESCE(meituan_dianping_tx.gmv, 0) + COALESCE(douyin_tx.gmv, 0) AS gmv
-FROM meituan_dianping_tx, douyin_tx;
-```
+### 6.1 Parser 基础设施
 
-### 6.2 美团/点评平台卡片
+新增 `worker/src/parsers/general/`，包括：
 
-来源优先级：
+- `excel.ts`：读取 workbook、sheet、headers、header hash、rows。
+- `parse-utils.ts`：日期、金额、整数、百分比、星级、中文布尔、空值、hash。
+- `store-match.ts`：平台 ID、连接门店映射、城市+门店名匹配，失败时 `needs_store_review=true`。
+- 9 个具体 parser。
 
-1. 客流：曝光、访问、意向、下单。
-2. 商品交易：营业额、订单量、退款。
-3. 评价汇总和评价明细：评价数量、好评/差评、回复状态。
-4. 榜单：商圈/城市/行政区排名。
+所有 parser 必须做 header sentinel。缺列返回 `COLUMN_DRIFT`，不能按列序猜。
 
-### 6.3 抖音平台卡片
+### 6.2 特殊粒度处理
 
-来源优先级：
+- 美团商品交易：本批只有 6 行，粒度是 `日期 x 商品类型`，写 `meituan_general_transaction_type_daily`，标记 `grain='brand_date_product_type'`。
+- 抖音商品：没有门店 ID，写 `douyin_general_product_daily`，标记 `grain='brand_date_product_channel'`，`store_id=null`。
+- 美团商品分析和评价汇总：平台值为 `ALL`，保留原值，查询层展示为“点评+美团”。
+- 榜单：保留每条榜单明细，不汇总到旧 `store_rankings`。
 
-1. 交易：核销金额、核销券数、意向成交、退款。
-2. 商品：曝光、访问、成交新客、直播/短视频/达人指标。
-3. 评价：评分、评价数、回复状态。
+### 6.3 dry-run 验收行数
 
-限制：当前商品报表缺门店维度，只能做品牌/商品级流量；单店抖音商品流量需要补一份带门店维度的导出样本。
+| artifact_type | 行数 |
+| --- | ---: |
+| `meituan_general_review_stats_daily` | 5,049 |
+| `meituan_general_review_comments` | 309 |
+| `meituan_general_product_traffic_daily` | 39,730 |
+| `meituan_general_transaction_type_daily` | 6 |
+| `meituan_general_store_traffic_daily` | 5,049 |
+| `meituan_general_ranking_daily` | 26,569 |
+| `douyin_general_review_comments` | 649 |
+| `douyin_general_transaction_daily` | 8,891 |
+| `douyin_general_product_daily` | 38,783 |
 
-### 6.4 单店深度分析
+## 7. 到综 RPA / worker 采集链路
 
-一期只展示可由平台 Excel 支撑的部分：
+### 7.1 worker x 资源矩阵
 
-- 渠道偏好：美团/点评/抖音核销金额占比。
-- 商品偏好：按商品名称解析 `特惠 / 中包 / 大包 / 尊享 / 12H / 4H` 等标签。
-- 评价画像：评价关键词、差评内容、回复情况。
-- 榜单表现：城市/行政区/商圈排名。
-
-不展示或标注“待接入”的部分：
-
-- 包间使用率、翻台率。
-- 下单时段。
-- 用户列表与标签。
-- 消费生命周期和流失用户。
-
-## 7. Worker 隔离设计
-
-到综 worker 和现有餐饮 worker 并存时，必须在入口 SELECT 按 `business_vertical` 过滤。这里不能再靠新平台码隔离，因为 `platform` 必须保持 `meituan`、`dianping`、`douyin`。
-
-不需要另写一套 scheduler 代码；可以在现有 scheduler 中按业态分轮取任务，也可以部署一个 `general` mode 实例。无论采用哪种运行方式，取任务入口都必须显式声明业态，例如 `WORKER_BUSINESS_VERTICAL=dining|general`。auth SELECT 和 scheduled SELECT 都要带这个过滤；worker-browser 加载连接后也要二次校验，避免脏数据或错误队列污染隔离边界。
-
-| worker / 资源 | `business_vertical=dining` 连接 | `business_vertical=general` 连接 | 到餐 artifact | 到综 artifact | 到餐数据 | 到综数据 |
+| worker / 资源 | dining 连接 | general 连接 | 到餐 artifact | 到综 artifact | 到餐数据 | 到综数据 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 现有到餐 worker | 允许 | 禁止 | 允许 | 禁止 | 允许 | 禁止 |
-| 久雀到综 worker | 禁止 | 允许 | 禁止 | 允许 | 禁止 | 允许 |
+| 现有到餐 worker | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| 久雀到综 worker | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ |
 
-```sql
-SELECT *
-FROM platform_connections
-WHERE connection_status = 'connected'
-  AND platform IN ('meituan', 'dianping', 'douyin')
-  AND business_vertical = $1 -- workerBusinessVertical
-FOR UPDATE SKIP LOCKED;
+### 7.2 必填环境变量
+
+```text
+WORKER_BUSINESS_VERTICAL=dining|general
 ```
 
-connector factory 也要按 `(platform, business_vertical)` 路由，不要在现有到餐 connector 里堆大 if：
+scheduler 的 pending auth SELECT、scheduled SELECT、worker-browser 加载连接后的二次校验，都必须使用这个值。
+
+### 7.3 connector factory
 
 ```ts
 switch (`${connection.platform}:${connection.business_vertical}`) {
@@ -836,69 +553,55 @@ switch (`${connection.platform}:${connection.business_vertical}`) {
 }
 ```
 
-不要在 dispatch 里做 fallback 到餐饮 connector。能力边界必须在取任务入口挡死；同一个 `platform='meituan'`，`dining` 和 `general` 可以走不同下载逻辑。
+禁止在到综 connector 失败时 fallback 到到餐 connector。
 
-## 8. 开发任务拆分
+## 8. 到综 API / query service
 
-### Phase 1：字段冻结与 dry-run
+新增 `apps/main/lib/jiuque-general/`，不要复用到餐 report builder 查询。
 
-- 新增 `stores.business_vertical`、`platform_connections.business_vertical`、`platform_authorizations.business_vertical`。
-- 新增 scheduler/worker 业态参数，并在取任务入口按 `business_vertical` 过滤。
-- 新增门店运营组织维表：`store_business_departments`、`store_operation_regions`、`store_region_assignments`，支撑 `/daily` 的业务部、区域、门店三级筛选。
-- 不新增平台码，`platform` 仍为 `meituan`、`dianping`、`douyin`。
-- 按本批 9 个样本暂定新增 9 个 `*_general_*` artifact type；如果后续确认格式一致，可回收为现有 artifact type + metadata。
-- 新增各 artifact 的 header sentinel。
-- 编写 dry-run 脚本，读取本批 9 个 Excel，输出 row count、insert candidate count、skipped count。
-- 记录每个 artifact 的 `business_vertical`、`header_hash`、`period_type`、`period_start`、`period_end`。
+| 模块 | 文件 | 职责 |
+| --- | --- | --- |
+| scope | `scope.ts` | `business_vertical='general'`、用户权限、业务部、区域、门店、日期归属 |
+| daily | `daily.ts` | `/daily` 总数据、平台卡片、数据覆盖说明 |
+| monitor | `monitor.ts` | Excel 可支撑的异常规则 |
+| users | `users.ts` | 只输出弱口径用户信号，不计算用户级留存/流失 |
+| store-detail | `store-detail.ts` | 单店渠道、商品、评价、榜单；品牌级 source 显示 unsupported |
 
-验收：
+API route 建议：
 
-- 9 个样本全部 dry-run 成功。
-- 行数与本文入口总表一致。
-- 抖音交易/商品按日导出；如果导出成周粒度，dry-run 明确报错。
+```text
+apps/main/app/api/jiuque-general/daily/route.ts
+apps/main/app/api/jiuque-general/monitor/route.ts
+apps/main/app/api/jiuque-general/users/route.ts
+apps/main/app/api/jiuque-general/stores/[storeId]/route.ts
+apps/main/app/api/jiuque-general/coverage/route.ts
+```
 
-### Phase 2：表结构与导入
+## 9. 开发任务拆分
 
-- 复用现有 `store_traffic`、`product_detail`、`store_reviews`、`store_comments`、`store_rankings`、`douyin_transactions_detail`、`douyin_product_detail`、`douyin_review`。
-- 实现到综专用美团/抖音 connector 路径，不把到综下载动作塞进现有到餐 connector 主流程。
-- 做字段对照：差异小则兼容现有表，差异大则新建业态专表；不改现有唯一键。
-- 实现美团 6 类 parser。
-- 实现抖音 3 类 parser。
-- 对金额、百分比、空值、`未上榜`、`-` 做统一 parse。
+完整 task 版实施计划见：
 
-验收：
+- Markdown：`2026-06-04-jiuque-daozong-general-implementation-plan.md`
+- HTML：`2026-06-04-jiuque-daozong-general-implementation-plan.html`
 
-- 每个 Excel 可以入库。
-- 重复导入幂等，不产生重复明细。
-- 门店无法匹配时进入 review 状态，不静默丢数据。
+阶段建议：
 
-### Phase 3：demo API 查询层
-
-- 新增 general in-store 查询模块。
-- 总览指标按核销口径返回，同时附带 GMV 备用字段。
-- 平台卡片区分美团/点评/抖音。
-- 所有查询都按 `business_vertical='general'` 过滤。
-- 异常监控只启用已接数据源规则。
-
-验收：
-
-- demo 的日常数据、平台数据和部分异常监控可由真实 Excel 生成。
-- `/users`、`/monitor`、单店深度分析里不能由当前 Excel 支撑的模块，明确显示“待接入小程序/POS/订单/房态/会员数据”。
-
-## 9. 还需要补充的材料
-
-为了后续开发更稳，建议再补 4 类材料：
-
-1. 截图更新：当前 HTML 已嵌入 Image #1 到 Image #9，以及 `/daily`、`/users`、`/monitor`、`/stores/上海徐汇店` demo 截图；后续如后台 UI 变化，覆盖 assets 同名图片即可。
-2. 抖音评价导出动作复测：Image #7 已补评价导出弹窗；开发时仍需确认导出按钮点击后的下载任务和文件命名规则。
-3. 抖音按日导出样本复测：交易、商品都选择“按日”后重新导出一份样本，作为 parser 的固定样本。
-4. 小程序/POS/订单样本：如果要做包间、翻台、用户画像、用户标签、流失/复购，需要订单级数据，至少包含订单 ID、用户匿名 ID、门店、包间/房型、开始/结束时间、支付金额、退款金额、渠道。
-
-这 4 类不是阻塞一期“平台 Excel 经营看板”的开发，但会影响图文文档完整度和二期能力边界。
+1. 控制面 migration：`business_vertical` + 业务部/区域/门店归属。
+2. 数据面 migration：9 张 `*_general_*` source 表。
+3. Parser 基础设施：Excel reader、header sentinel、parse utils、store match。
+4. 美团 6 parser：严格导入 6 类 Excel。
+5. 抖音 3 parser：严格导入 3 类 Excel。
+6. dry-run CLI：9 个样本全量校验行数和 header hash。
+7. worker 隔离：`WORKER_BUSINESS_VERTICAL` + SELECT 过滤 + 二次校验。
+8. general connector：独立下载路径和 artifact metadata。
+9. query service：`apps/main/lib/jiuque-general/*`。
+10. API routes：`apps/main/app/api/jiuque-general/*`。
+11. 页面：`/jiuque/daily`、`/jiuque/monitor`、`/jiuque/users`、`/jiuque/stores/[storeId]`。
+12. 验收与观测：coverage、parse metadata、unsupported 指标展示。
 
 ## 10. 对客户口径说明
 
 建议对外这样表述：
 
-> 一期接入美团经营宝和抖音来客可下载 Excel，优先建设门店经营、平台流量、商品交易、评价、榜单和基础异常监控。营业额默认采用核销金额，更贴近实际消费；同时保留成交金额作为 GMV 备用口径。  
+> 一期接入美团经营宝和抖音来客可下载 Excel，优先建设门店经营、平台流量、商品交易、评价、榜单和基础异常监控。营业额默认采用核销金额，更贴近实际消费；同时保留成交金额作为 GMV 备用口径。
 > 用户画像、包间翻台、私域好友、设备合规、回本周期不属于本批平台 Excel 的直接字段，需要补充小程序/POS/订单/房型/企微/财务数据后作为二期建设。
