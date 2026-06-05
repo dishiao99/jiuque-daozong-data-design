@@ -621,6 +621,9 @@
           <div class="callout blue">
             架构结论：不为久雀单独新建一套数据库；共享现有 PostgreSQL，但先新增 <code>business_vertical</code> 业态维度。<code>meituan</code>、<code>dianping</code>、<code>douyin</code> 继续作为平台维度；“到店综合”不新增为平台。connector 需要到综专用采集路径，scheduler 可以复用现有服务，但取任务入口必须按业态过滤。
           </div>
+          <div class="callout blue">
+            <code>business_vertical</code> 不再把全部到综统一写成 <code>general</code>。到餐保持一个值 <code>dining</code>；久雀属于到综下的休闲娱乐，使用 <code>general_leisure_entertainment</code>。后续如果接入丽人、亲子等到综子类，再扩展 <code>general_beauty</code>、<code>general_parent_child</code> 这类枚举。<code>*_general_*</code> source 表和 <code>jiuque-general</code> 模块名继续表示“到综数据面/模块”，不等同于 <code>business_vertical</code> 的取值。
+          </div>
           <div class="callout warn">
             本 HTML 已把 9 张入口截图和 5 张 demo 页面截图放入 <code>assets/jiuque-daozong/</code>，页面打开后会直接显示真实图片；如果后续截图更新，只需要覆盖 assets 目录下对应图片。
           </div>
@@ -789,7 +792,7 @@
           <table>
             <thead><tr><th>标记</th><th>demo 模块或指标</th><th>当前 Excel 支撑度</th><th>数据源</th><th>计算方式</th><th>需要客户确认/补数</th></tr></thead>
             <tbody>
-              <tr><td>A1</td><td>业务部、区域、门店筛选</td><td class="support rule">支撑查询层</td><td><code>store_business_departments</code>、<code>store_operation_regions</code>、<code>store_region_assignments</code></td><td>先按 <code>business_vertical='general'</code> 限定到综门店，再按业务部、区域得到门店集合。</td><td>业务部/区域清单、门店归属、生效日期。</td></tr>
+              <tr><td>A1</td><td>业务部、区域、门店筛选</td><td class="support rule">支撑查询层</td><td><code>store_business_departments</code>、<code>store_operation_regions</code>、<code>store_region_assignments</code></td><td>先按 <code>business_vertical='general_leisure_entertainment'</code> 限定到综门店，再按业务部、区域得到门店集合。</td><td>业务部/区域清单、门店归属、生效日期。</td></tr>
               <tr><td>A2</td><td>日期、工作日/周末、同比、环比</td><td class="support rule">支撑查询层</td><td>各 Excel 的 <code>日期</code>；工作日/周末由日历派生</td><td>日期范围过滤事实表；同比/环比在查询层计算。</td><td>节假日口径；环比取上一周期还是上周同期。</td></tr>
               <tr><td>A3</td><td>营业额</td><td class="support ok">支撑</td><td>美团交易 <code>核销金额</code>；抖音交易 <code>核销金额</code>；小程序/POS 待补</td><td>默认 <code>sum(核销金额)</code>，GMV 另保留下单/意向成交金额。</td><td>展示实收/核销，还是成交 GMV。</td></tr>
               <tr><td>A4</td><td>订单量</td><td class="support ok">支撑</td><td>美团交易 <code>核销券数</code>；抖音交易 <code>核销券数</code></td><td>默认按核销券数；下单口径另保留下单券数/意向成交券数。</td><td>订单量按券数、订单数还是用户数。</td></tr>
@@ -946,7 +949,7 @@
 
         <section id="schema">
           <h2>4. 入库模型设计</h2>
-          <p>修正原则：平台和业态拆开建模。<code>platform</code> 继续表示数据来源，保持 <code>meituan</code>、<code>dianping</code>、<code>douyin</code>；到店综合通过 <code>business_vertical='general'</code> 表示，不新增综合平台，也不为久雀单独复制一套数据库。</p>
+          <p>修正原则：平台和业态拆开建模。<code>platform</code> 继续表示数据来源，保持 <code>meituan</code>、<code>dianping</code>、<code>douyin</code>；久雀这个到综子业态通过 <code>business_vertical='general_leisure_entertainment'</code> 表示，不新增综合平台，也不为久雀单独复制一套数据库。</p>
 
           <div class="callout blue">
             到店餐饮和到店综合不会在同一个实体门店上共存，因此现有事实表唯一键，例如 <code>UNIQUE(store_id, date, platform)</code>，短期保持不变。真正的隔离边界来自 <code>stores.business_vertical</code> 和 <code>platform_connections.business_vertical</code>，不是靠复制平台码。
@@ -955,15 +958,15 @@
           <h3>4.1 新增业态字段</h3>
           <pre><code>ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining'
-  CHECK (business_vertical IN ('dining', 'general'));
+  CHECK (business_vertical IN ('dining', 'general_leisure_entertainment'));
 
 ALTER TABLE platform_connections
   ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining'
-  CHECK (business_vertical IN ('dining', 'general'));
+  CHECK (business_vertical IN ('dining', 'general_leisure_entertainment'));
 
 ALTER TABLE platform_authorizations
   ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining'
-  CHECK (business_vertical IN ('dining', 'general'));
+  CHECK (business_vertical IN ('dining', 'general_leisure_entertainment'));
 
 CREATE INDEX IF NOT EXISTS idx_stores_business_vertical
   ON stores(business_vertical);
@@ -974,6 +977,9 @@ CREATE INDEX IF NOT EXISTS idx_platform_connections_platform_vertical
 CREATE INDEX IF NOT EXISTS idx_platform_authorizations_platform_vertical
   ON platform_authorizations(platform, business_vertical, authorization_status);</code></pre>
           <div class="callout blue">
+            当前只落两个枚举：<code>dining</code> 表示到餐，<code>general_leisure_entertainment</code> 表示久雀这类到综休闲娱乐。后续丽人、亲子等到综子业态按 <code>general_*</code> 继续追加。
+          </div>
+          <div class="callout blue">
             <code>stores.business_vertical</code> 是门店业务归属的最终判断；<code>platform_connections.business_vertical</code> 和 <code>platform_authorizations.business_vertical</code> 用于授权、采集、scheduler 取任务和 parser 路由。创建连接时应从门店继承，品牌级连接则由用户选择。
           </div>
 
@@ -981,7 +987,7 @@ CREATE INDEX IF NOT EXISTS idx_platform_authorizations_platform_vertical
           <div class="callout blue">
             兼容说明：<code>platform_connections.platform</code>、<code>platform_authorizations.platform</code> 使用英文平台 key；部分既有事实表历史上可能保存中文平台值，例如 <code>product_detail.platform='美团'/'点评'</code>。到综开发时不要新增 <code>meituan_general</code> 这类平台码；如果复用历史表，parser 和查询层需要做 <code>normalize_platform_key</code> 兼容。
           </div>
-          <p>格式和到餐一致时继续用现有 artifact type，并在 metadata 记录 <code>business_vertical='general'</code>；格式不同则使用带业态的 artifact type。本文 9 个样本一期先按格式不同处理，避免误走现有到餐 parser：</p>
+          <p>格式和到餐一致时继续用现有 artifact type，并在 metadata 记录 <code>business_vertical='general_leisure_entertainment'</code>；格式不同则使用带业态的 artifact type。本文 9 个样本一期先按格式不同处理，避免误走现有到餐 parser：</p>
           <pre><code>meituan_general_review_stats_daily
 meituan_general_review_comments
 meituan_general_product_traffic
@@ -996,15 +1002,15 @@ douyin_general_product</code></pre>
           <table>
             <thead><tr><th>样本</th><th>复用目标</th><th>platform key / 事实表取值</th><th>业态</th><th>说明</th></tr></thead>
             <tbody>
-              <tr><td>美团评价汇总</td><td><code>store_reviews</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>评价数、好评数、差评数、回复率</td></tr>
-              <tr><td>美团评价明细</td><td><code>store_comments</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>无稳定评价 ID 时用内容 hash 生成 <code>platform_comment_id</code></td></tr>
-              <tr><td>美团商品访问</td><td><code>product_detail</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>商品 ID、售价、访问、下单、访购率</td></tr>
-              <tr><td>美团商品交易</td><td><code>product_detail</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>下单、核销、退款按商品粒度保留</td></tr>
-              <tr><td>美团客流</td><td><code>store_traffic</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>曝光、访问、意向、下单、收藏、打卡</td></tr>
-              <tr><td>美团榜单</td><td><code>store_rankings</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general</code></td><td>多榜单明细不足字段先保留 raw_data</td></tr>
-              <tr><td>抖音评价</td><td><code>douyin_review</code></td><td><code>douyin</code></td><td><code>general</code></td><td>保留 AI/RPA 回复扩展空间</td></tr>
-              <tr><td>抖音交易</td><td><code>douyin_transactions_detail</code></td><td><code>douyin</code></td><td><code>general</code></td><td>RPA 选择“按日”导出；若文件出现 <code>周</code> 字段则重新导出</td></tr>
-              <tr><td>抖音商品</td><td><code>douyin_product_detail</code></td><td><code>douyin</code></td><td><code>general</code></td><td>缺门店维度时只做品牌/商品层指标</td></tr>
+              <tr><td>美团评价汇总</td><td><code>store_reviews</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general_leisure_entertainment</code></td><td>评价数、好评数、差评数、回复率</td></tr>
+              <tr><td>美团评价明细</td><td><code>store_comments</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general_leisure_entertainment</code></td><td>无稳定评价 ID 时用内容 hash 生成 <code>platform_comment_id</code></td></tr>
+              <tr><td>美团商品访问</td><td><code>product_detail</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general_leisure_entertainment</code></td><td>商品 ID、售价、访问、下单、访购率</td></tr>
+              <tr><td>美团商品交易</td><td><code>product_detail</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general_leisure_entertainment</code></td><td>下单、核销、退款按商品粒度保留</td></tr>
+              <tr><td>美团客流</td><td><code>store_traffic</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general_leisure_entertainment</code></td><td>曝光、访问、意向、下单、收藏、打卡</td></tr>
+              <tr><td>美团榜单</td><td><code>store_rankings</code></td><td>key 为 <code>meituan</code> / <code>dianping</code>；历史事实表兼容 <code>美团</code> / <code>点评</code></td><td><code>general_leisure_entertainment</code></td><td>多榜单明细不足字段先保留 raw_data</td></tr>
+              <tr><td>抖音评价</td><td><code>douyin_review</code></td><td><code>douyin</code></td><td><code>general_leisure_entertainment</code></td><td>保留 AI/RPA 回复扩展空间</td></tr>
+              <tr><td>抖音交易</td><td><code>douyin_transactions_detail</code></td><td><code>douyin</code></td><td><code>general_leisure_entertainment</code></td><td>RPA 选择“按日”导出；若文件出现 <code>周</code> 字段则重新导出</td></tr>
+              <tr><td>抖音商品</td><td><code>douyin_product_detail</code></td><td><code>douyin</code></td><td><code>general_leisure_entertainment</code></td><td>缺门店维度时只做品牌/商品层指标</td></tr>
             </tbody>
           </table>
 
@@ -1020,8 +1026,8 @@ douyin_general_product</code></pre>
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
   customer_code VARCHAR(64) NOT NULL DEFAULT 'jiuque',
-  business_vertical VARCHAR(32) NOT NULL DEFAULT 'general'
-    CHECK (business_vertical IN ('dining', 'general')),
+  business_vertical VARCHAR(32) NOT NULL DEFAULT 'general_leisure_entertainment'
+    CHECK (business_vertical IN ('dining', 'general_leisure_entertainment')),
   department_name VARCHAR(100) NOT NULL,
   department_code VARCHAR(64),
   sort_order INTEGER NOT NULL DEFAULT 0,
@@ -1052,7 +1058,7 @@ CREATE TABLE IF NOT EXISTS store_region_assignments (
   CHECK (valid_to IS NULL OR valid_to >= valid_from),
   UNIQUE(store_id, region_id, valid_from)
 );</code></pre>
-          <div class="callout blue">查询顺序：先按 <code>business_vertical='general'</code> 限定到综门店，再按业务部和区域算出 <code>store_id</code> 集合，最后传给日常数据、用户分析、异常监控、单店深度分析查询。</div>
+          <div class="callout blue">查询顺序：先按 <code>business_vertical='general_leisure_entertainment'</code> 限定到综门店，再按业务部和区域算出 <code>store_id</code> 集合，最后传给日常数据、用户分析、异常监控、单店深度分析查询。</div>
           <div class="callout warn">如果同一门店同一日期只能归属一个主区域，一期用应用层校验防重；后续需要强约束时再加 PostgreSQL exclusion constraint，避免出现重叠生效区间。</div>
         </section>
 
@@ -1062,7 +1068,7 @@ CREATE TABLE IF NOT EXISTS store_region_assignments (
           <p>Parser 路由按 <code>platform + business_vertical + artifact_type</code> 判断。平台只表示来源，业态决定走到餐逻辑还是到综逻辑。</p>
           <pre><code>const vertical = connection.business_vertical ?? 'dining'
 
-if (vertical === 'general') {
+if (vertical === 'general_leisure_entertainment') {
   switch (artifactType) {
     case 'meituan_general_review_stats_daily':
     case 'meituan_general_review_comments':
@@ -1077,7 +1083,7 @@ if (vertical === 'general') {
   }
 }</code></pre>
           <div class="callout blue">
-            如果未来确认某个到综 Excel 与现有到餐 artifact 完全一致，可以复用现有 artifact type，但必须写入 <code>metadata.business_vertical='general'</code>，且 parser 分支必须读取 connection vertical，不能只靠 artifact type 判断。
+            如果未来确认某个到综 Excel 与现有到餐 artifact 完全一致，可以复用现有 artifact type，但必须写入 <code>metadata.business_vertical='general_leisure_entertainment'</code>，且 parser 分支必须读取 connection vertical，不能只靠 artifact type 判断。
           </div>
           <div class="callout warn">每个 parser 必须做表头 sentinel 校验。表头不匹配时返回 <code>COLUMN_DRIFT</code>，不能静默按错列导入。</div>
 
@@ -1114,7 +1120,7 @@ if (vertical === 'general') {
    AND (sra.valid_to IS NULL OR sra.valid_to &gt;= $1::date)
   LEFT JOIN store_operation_regions r ON r.id = sra.region_id
   LEFT JOIN store_business_departments d ON d.id = r.department_id
-  WHERE s.business_vertical = 'general'
+  WHERE s.business_vertical = 'general_leisure_entertainment'
     AND ($3::uuid[] IS NULL OR s.id = ANY($3::uuid[]))
     AND ($4::uuid IS NULL OR d.id = $4::uuid)
     AND ($5::uuid IS NULL OR r.id = $5::uuid)
@@ -1124,7 +1130,7 @@ connected_stores AS (
   FROM platform_connection_stores pcs
   JOIN platform_connections pc ON pc.id = pcs.connection_id
   JOIN scoped_stores ss ON ss.store_id = pcs.store_id
-  WHERE pc.business_vertical = 'general'
+  WHERE pc.business_vertical = 'general_leisure_entertainment'
     AND pc.platform = ANY(ARRAY['meituan', 'dianping', 'douyin'])
 ),
 meituan_dianping_tx AS (
@@ -1187,9 +1193,9 @@ FROM meituan_dianping_tx, douyin_tx;</code></pre>
 
         <section id="worker">
           <h2>7. Worker 隔离设计</h2>
-          <p>不需要另写一套 scheduler 代码；可以在现有 scheduler 中按业态分轮取任务，也可以部署一个 <code>general</code> mode 实例。无论采用哪种运行方式，取任务入口都必须显式声明业态，例如 <code>WORKER_BUSINESS_VERTICAL=dining|general</code>，并在 SELECT 里过滤 <code>business_vertical</code>。同一个 <code>platform='meituan'</code>，<code>dining</code> 和 <code>general</code> 可以走不同下载逻辑。</p>
+          <p>不需要另写一套 scheduler 代码；可以在现有 scheduler 中按业态分轮取任务，也可以部署一个 <code>general_leisure_entertainment</code> mode 实例。无论采用哪种运行方式，取任务入口都必须显式声明业态，例如 <code>WORKER_BUSINESS_VERTICAL=dining|general_leisure_entertainment</code>，并在 SELECT 里过滤 <code>business_vertical</code>。同一个 <code>platform='meituan'</code>，<code>dining</code> 和 <code>general_leisure_entertainment</code> 可以走不同下载逻辑。</p>
           <table>
-            <thead><tr><th>worker / 资源</th><th>dining 连接</th><th>general 连接</th><th>到餐 artifact</th><th>到综 artifact</th><th>到餐数据</th><th>到综数据</th></tr></thead>
+            <thead><tr><th>worker / 资源</th><th>dining 连接</th><th>general_leisure_entertainment 连接</th><th>到餐 artifact</th><th>到综 artifact</th><th>到餐数据</th><th>到综数据</th></tr></thead>
             <tbody>
               <tr><td>现有到餐 worker</td><td>允许</td><td>禁止</td><td>允许</td><td>禁止</td><td>允许</td><td>禁止</td></tr>
               <tr><td>久雀到综 worker</td><td>禁止</td><td>允许</td><td>禁止</td><td>允许</td><td>禁止</td><td>允许</td></tr>
@@ -1207,10 +1213,10 @@ FOR UPDATE SKIP LOCKED;</code></pre>
     return new MeituanConnector(...)
   case 'douyin:dining':
     return new DouyinConnector(...)
-  case 'meituan:general':
-  case 'dianping:general':
+  case 'meituan:general_leisure_entertainment':
+  case 'dianping:general_leisure_entertainment':
     return new MeituanGeneralConnector(...)
-  case 'douyin:general':
+  case 'douyin:general_leisure_entertainment':
     return new DouyinGeneralConnector(...)
 }</code></pre>
           <div class="callout">不要在 dispatch 里做 fallback 到餐饮 connector。能力边界必须在取任务入口挡死；worker-browser 加载连接后也要二次校验 <code>business_vertical</code>，避免脏数据或错误队列污染隔离边界。</div>
@@ -1221,7 +1227,7 @@ FOR UPDATE SKIP LOCKED;</code></pre>
           <div class="pipeline">
             <div class="step"><b>Phase 1</b><span>新增 business_vertical 三个字段、scheduler/worker 业态参数、取任务 SELECT 过滤、门店运营组织维表、9 个 general artifact、表头 sentinel、dry-run 脚本和周期解析。</span></div>
             <div class="step"><b>Phase 2</b><span>实现到综专用美团/抖音 connector 路径和 9 类 parser；差异小则兼容现有表，差异大再建业态专表；不改现有唯一键。</span></div>
-            <div class="step"><b>Phase 3</b><span>新增 general in-store 查询模块，总览按核销口径返回并保留 GMV，所有查询先按 business_vertical='general' 缩门店范围。</span></div>
+            <div class="step"><b>Phase 3</b><span>新增 general in-store 查询模块，总览按核销口径返回并保留 GMV，所有查询先按 business_vertical='general_leisure_entertainment' 缩门店范围。</span></div>
             <div class="step"><b>Phase 4</b><span>启用可由 Excel 支撑的异常监控：营业额、曝光、转化、退款、评价、榜单；不可支撑字段明确待接入。</span></div>
             <div class="step"><b>Phase 5</b><span>接小程序/POS/订单后，补包间、翻台、用户画像、流失复购。</span></div>
           </div>

@@ -10,9 +10,11 @@
 
 久雀到综按“共享控制面 + 独立数据面 + 独立查询/页面层”实现。
 
+`business_vertical` 不再把全部到综统一写成 `general`。到餐保持一个值 `dining`；久雀属于到综下的休闲娱乐，使用 `general_leisure_entertainment`。后续如果接入丽人、亲子等到综子类，再扩展 `general_beauty`、`general_parent_child` 这类枚举。`*_general_*` source 表和 `jiuque-general` 模块名继续表示“到综数据面/模块”，不等同于 `business_vertical` 的取值。
+
 | 层级 | 决策 | 说明 |
 | --- | --- | --- |
-| 控制面 | 共享 | `stores`、用户、权限、订阅、`platform_connections`、`platform_authorizations`、业务部、区域、门店归属继续共用现有体系，通过 `business_vertical='general'` 隔离 |
+| 控制面 | 共享 | `stores`、用户、权限、订阅、`platform_connections`、`platform_authorizations`、业务部、区域、门店归属继续共用现有体系，通过 `business_vertical='general_leisure_entertainment'` 隔离 |
 | 数据面 | 全部拆开 | 9 个 Excel 全部进入 `*_general_*` 表，不再写入到餐现有事实表，避免字段语义、粒度和平台值污染 |
 | 查询层 | 单独写 | 到综 UI/UX 与到餐不同，新增 general query service/API，围绕 `/daily`、`/users`、`/monitor`、`/stores/[store]` 组织 |
 | RPA/worker | 平台共享，业态隔离 | scheduler/BullMQ/浏览器 worker 可复用，但任务入口必须按 `business_vertical` 过滤，connector factory 按 `(platform, business_vertical)` 路由 |
@@ -35,10 +37,10 @@
 
 ```text
 platform_connections / stores / users / permissions
-  -> shared control plane, filtered by business_vertical='general'
+  -> shared control plane, filtered by business_vertical='general_leisure_entertainment'
 
 collection_runs / collection_artifacts
-  -> shared artifact log, metadata.business_vertical='general'
+  -> shared artifact log, metadata.business_vertical='general_leisure_entertainment'
 
 *_general_* source tables
   -> exact Excel grain + header_hash + raw_row + parse warnings
@@ -100,17 +102,17 @@ apps/main/app/api/jiuque-general/*
 ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining',
   ADD CONSTRAINT stores_business_vertical_check
-    CHECK (business_vertical IN ('dining', 'general'));
+    CHECK (business_vertical IN ('dining', 'general_leisure_entertainment'));
 
 ALTER TABLE platform_connections
   ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining',
   ADD CONSTRAINT platform_connections_business_vertical_check
-    CHECK (business_vertical IN ('dining', 'general'));
+    CHECK (business_vertical IN ('dining', 'general_leisure_entertainment'));
 
 ALTER TABLE platform_authorizations
   ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining',
   ADD CONSTRAINT platform_authorizations_business_vertical_check
-    CHECK (business_vertical IN ('dining', 'general'));
+    CHECK (business_vertical IN ('dining', 'general_leisure_entertainment'));
 
 CREATE INDEX IF NOT EXISTS idx_stores_business_vertical ON stores(business_vertical);
 CREATE INDEX IF NOT EXISTS idx_platform_connections_platform_vertical
@@ -124,8 +126,8 @@ CREATE TABLE IF NOT EXISTS store_business_departments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
   customer_code VARCHAR(64) NOT NULL DEFAULT 'jiuque',
-  business_vertical VARCHAR(32) NOT NULL DEFAULT 'general'
-    CHECK (business_vertical IN ('dining', 'general')),
+  business_vertical VARCHAR(32) NOT NULL DEFAULT 'general_leisure_entertainment'
+    CHECK (business_vertical IN ('dining', 'general_leisure_entertainment')),
   department_name VARCHAR(100) NOT NULL,
   department_code VARCHAR(64),
   sort_order INTEGER NOT NULL DEFAULT 0,
@@ -329,19 +331,19 @@ Expected: no `COLUMN_DRIFT`.
 
 ### Task 7: Worker 业态隔离
 
-**Goal:** dining/general worker 不能互相取任务。
+**Goal:** dining/general_leisure_entertainment worker 不能互相取任务。
 
 **Files:**
 - Modify: `worker/src/scheduler.ts`
 - Modify: `worker/src/index-browser.ts`
 - Modify: `worker/src/scheduler/reschedule-after-run.ts` if needed
 
-- [ ] Step 1: `WORKER_BUSINESS_VERTICAL=dining|general` 必填。
+- [ ] Step 1: `WORKER_BUSINESS_VERTICAL=dining|general_leisure_entertainment` 必填。
 
 ```ts
 const workerBusinessVertical = process.env.WORKER_BUSINESS_VERTICAL
-if (workerBusinessVertical !== 'dining' && workerBusinessVertical !== 'general') {
-  throw new Error('WORKER_BUSINESS_VERTICAL must be dining or general')
+if (workerBusinessVertical !== 'dining' && workerBusinessVertical !== 'general_leisure_entertainment') {
+  throw new Error('WORKER_BUSINESS_VERTICAL must be dining or general_leisure_entertainment')
 }
 ```
 
@@ -366,7 +368,7 @@ npm test -- test/integration/dispatcher.test.ts test/integration/assignWorker.te
 - [ ] Step 1: connector factory 改为 `(platform, business_vertical)` 路由。
 - [ ] Step 2: `MeituanGeneralConnector` 产出 6 个美团 artifact。
 - [ ] Step 3: `DouyinGeneralConnector` 产出 3 个抖音 artifact。
-- [ ] Step 4: 每个 artifact 写入 `metadata.business_vertical='general'`、`period_type='day'`、`source_grain`。
+- [ ] Step 4: 每个 artifact 写入 `metadata.business_vertical='general_leisure_entertainment'`、`period_type='day'`、`source_grain`。
 
 ### Task 9: 到综 query service
 
@@ -380,7 +382,7 @@ npm test -- test/integration/dispatcher.test.ts test/integration/assignWorker.te
 - Create: `apps/main/lib/jiuque-general/users.ts`
 - Create: `apps/main/lib/jiuque-general/store-detail.ts`
 
-- [ ] Step 1: scope resolver 按 `general -> user access -> department -> region -> store -> date-valid assignment` 过滤。
+- [ ] Step 1: scope resolver 按 `general_leisure_entertainment -> user access -> department -> region -> store -> date-valid assignment` 过滤。
 - [ ] Step 2: `/daily` 返回总数据、平台卡片、数据可用性说明。
 - [ ] Step 3: `/monitor` 只启用 Excel 支撑规则：营收下滑、曝光下滑、转化下降、退款异常、差评率、未回复、榜单下降。
 - [ ] Step 4: `/users` 只返回弱信号，不能声明用户级留存/流失。
@@ -398,7 +400,7 @@ npm test -- test/integration/dispatcher.test.ts test/integration/assignWorker.te
 
 - [ ] Step 1: 复用现有 session/auth/access-control pattern。
 - [ ] Step 2: 校验 `startDate/endDate/departmentId/regionId/storeId`。
-- [ ] Step 3: 测试 owner/admin/child user 权限和 `business_vertical='general'` 过滤。
+- [ ] Step 3: 测试 owner/admin/child user 权限和 `business_vertical='general_leisure_entertainment'` 过滤。
 
 ### Task 11: 久雀页面
 
@@ -439,7 +441,7 @@ cd worker && npm test
 
 1. 9 个 Excel dry-run 行数准确，header hash 稳定。
 2. `*_general_*` parser 不写任何到餐事实表。
-3. 所有 API/query 都过滤 `business_vertical='general'`。
+3. 所有 API/query 都过滤 `business_vertical='general_leisure_entertainment'`。
 4. 品牌级文件不展示成单店事实。
 5. worker 入口按 `WORKER_BUSINESS_VERTICAL` 隔离。
 6. 页面明确显示 unsupported 指标，不伪造包间、翻台、用户生命周期。

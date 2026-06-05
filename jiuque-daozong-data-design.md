@@ -10,7 +10,9 @@
 
 久雀一期范围已确认：只接入美团经营宝和抖音来客的 Excel 可下载数据。本批样本已经足够启动一期 parser、数据表设计和 RPA 下载链路；美团经营宝侧覆盖门店客流、商品访问、品牌级商品交易、评价汇总、评价明细、榜单，抖音来客侧覆盖交易、商品、评价明细。
 
-架构结论更新为“共享控制面 + 独立数据面 + 独立查询/页面层”：不为久雀单独新建数据库；`stores`、用户、权限、订阅、`platform_connections`、`platform_authorizations`、业务部、区域、门店归属继续共用现有体系，通过 `business_vertical='general'` 隔离。9 个 Excel 全部进入 `*_general_*` 到综 source 表，不再写入到餐现有事实表，避免字段语义、粒度和平台值污染。
+架构结论更新为“共享控制面 + 独立数据面 + 独立查询/页面层”：不为久雀单独新建数据库；`stores`、用户、权限、订阅、`platform_connections`、`platform_authorizations`、业务部、区域、门店归属继续共用现有体系，通过 `business_vertical='general_leisure_entertainment'` 隔离。9 个 Excel 全部进入 `*_general_*` 到综 source 表，不再写入到餐现有事实表，避免字段语义、粒度和平台值污染。
+
+`business_vertical` 不再把全部到综统一写成 `general`。到餐保持一个值 `dining`；久雀属于到综下的休闲娱乐，使用 `general_leisure_entertainment`。后续如果接入丽人、亲子等到综子类，再扩展 `general_beauty`、`general_parent_child` 这类枚举。`*_general_*` source 表和 `jiuque-general` 模块名继续表示“到综数据面/模块”，不等同于 `business_vertical` 的取值。
 
 到综查询层和页面层单独建设，不复用到餐 report builder 查询。`platform` 仍保持 `meituan`、`dianping`、`douyin`；“到店综合”不新增平台码。connector 需要到综专用采集路径，scheduler/BullMQ/浏览器 worker 可以复用，但取任务入口必须按 `business_vertical` 过滤。
 
@@ -63,7 +65,7 @@ Excel 表头：
 - 到综 source 表：`meituan_general_review_stats_daily`；不写入到餐 `store_reviews`。
 - 周期：按 `date` 日粒度入库，周期元信息写入 artifact metadata。
 - 唯一键：`(source_connection_id, stat_date, platform_store_id)`。
-- 口径：`source_platform='ALL'` 原样保留；查询层展示为“点评+美团”，并始终按 `business_vertical='general'` 过滤。
+- 口径：`source_platform='ALL'` 原样保留；查询层展示为“点评+美团”，并始终按 `business_vertical='general_leisure_entertainment'` 过滤。
 
 ### 图 2：美团门店评价详情
 
@@ -140,7 +142,7 @@ Excel 表头：
 入库建议：
 
 - 到综 source 表：`meituan_general_transaction_type_daily`；该文件是品牌级 `日期 x 商品类型`，不写入单店交易表。
-- 查询口径：按 `business_vertical='general'` 过滤，不新增综合平台
+- 查询口径：按 `business_vertical='general_leisure_entertainment'` 过滤，不新增综合平台
 - 默认营业额口径：`核销金额`
 - GMV 备用口径：`下单金额`
 - 订单量默认口径：`核销券数`
@@ -302,7 +304,7 @@ Excel 表头：
 
 | 标记 | demo 模块或指标 | 当前 Excel 支撑度 | 数据源 | 计算方式 | 需要客户确认/补数 |
 | --- | --- | --- | --- | --- | --- |
-| A1 | 业务部、区域、门店筛选 | 支撑查询层 | `store_business_departments`、`store_operation_regions`、`store_region_assignments` | 先按 `business_vertical='general'` 限定到综门店，再按业务部、区域得到门店集合 | 业务部/区域清单、门店归属、生效日期 |
+| A1 | 业务部、区域、门店筛选 | 支撑查询层 | `store_business_departments`、`store_operation_regions`、`store_region_assignments` | 先按 `business_vertical='general_leisure_entertainment'` 限定到综门店，再按业务部、区域得到门店集合 | 业务部/区域清单、门店归属、生效日期 |
 | A2 | 日期、工作日/周末、同比、环比 | 支撑查询层 | 各 Excel 的 `日期`；工作日/周末由日历派生 | 日期范围过滤事实表；同比/环比在查询层计算 | 节假日口径；环比取上一周期还是上周同期 |
 | A3 | 营业额 | 支撑 | 美团交易 `核销金额`；抖音交易 `核销金额`；小程序/POS 待补 | 默认 `sum(核销金额)`，GMV 另保留下单/意向成交金额 | 展示实收/核销，还是成交 GMV |
 | A4 | 订单量 | 支撑 | 美团交易 `核销券数`；抖音交易 `核销券数` | 默认按核销券数；下单口径另保留下单券数/意向成交券数 | 订单量按券数、订单数还是用户数 |
@@ -422,7 +424,7 @@ Excel 表头：
 
 ### 4.1 最终边界
 
-到综不复制用户、权限、门店、连接、授权、订阅这些控制面表。控制面继续共享，靠 `business_vertical='general'` 隔离。
+久雀到综不复制用户、权限、门店、连接、授权、订阅这些控制面表。控制面继续共享，靠 `business_vertical='general_leisure_entertainment'` 隔离。
 
 数据面全部拆开：9 个 Excel 全部进入 `*_general_*` source 表，不再写入到餐现有事实表。旧表可以作为字段命名和口径参考，但不是一期落库目标。
 
@@ -433,16 +435,18 @@ Excel 表头：
 ```sql
 ALTER TABLE stores
   ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining'
-  CHECK (business_vertical IN ('dining', 'general'));
+  CHECK (business_vertical IN ('dining', 'general_leisure_entertainment'));
 
 ALTER TABLE platform_connections
   ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining'
-  CHECK (business_vertical IN ('dining', 'general'));
+  CHECK (business_vertical IN ('dining', 'general_leisure_entertainment'));
 
 ALTER TABLE platform_authorizations
   ADD COLUMN IF NOT EXISTS business_vertical VARCHAR(32) NOT NULL DEFAULT 'dining'
-  CHECK (business_vertical IN ('dining', 'general'));
+  CHECK (business_vertical IN ('dining', 'general_leisure_entertainment'));
 ```
+
+当前只落两个枚举：`dining` 表示到餐，`general_leisure_entertainment` 表示久雀这类到综休闲娱乐。后续丽人、亲子等到综子业态按 `general_*` 继续追加。
 
 ### 4.3 业务部、区域、门店归属
 
@@ -523,7 +527,7 @@ ALTER TABLE platform_authorizations
 
 ### 7.1 worker x 资源矩阵
 
-| worker / 资源 | dining 连接 | general 连接 | 到餐 artifact | 到综 artifact | 到餐数据 | 到综数据 |
+| worker / 资源 | dining 连接 | general_leisure_entertainment 连接 | 到餐 artifact | 到综 artifact | 到餐数据 | 到综数据 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 现有到餐 worker | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | 久雀到综 worker | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ |
@@ -531,7 +535,7 @@ ALTER TABLE platform_authorizations
 ### 7.2 必填环境变量
 
 ```text
-WORKER_BUSINESS_VERTICAL=dining|general
+WORKER_BUSINESS_VERTICAL=dining|general_leisure_entertainment
 ```
 
 scheduler 的 pending auth SELECT、scheduled SELECT、worker-browser 加载连接后的二次校验，都必须使用这个值。
@@ -545,10 +549,10 @@ switch (`${connection.platform}:${connection.business_vertical}`) {
     return new MeituanConnector(...)
   case 'douyin:dining':
     return new DouyinConnector(...)
-  case 'meituan:general':
-  case 'dianping:general':
+  case 'meituan:general_leisure_entertainment':
+  case 'dianping:general_leisure_entertainment':
     return new MeituanGeneralConnector(...)
-  case 'douyin:general':
+  case 'douyin:general_leisure_entertainment':
     return new DouyinGeneralConnector(...)
 }
 ```
@@ -561,7 +565,7 @@ switch (`${connection.platform}:${connection.business_vertical}`) {
 
 | 模块 | 文件 | 职责 |
 | --- | --- | --- |
-| scope | `scope.ts` | `business_vertical='general'`、用户权限、业务部、区域、门店、日期归属 |
+| scope | `scope.ts` | `business_vertical='general_leisure_entertainment'`、用户权限、业务部、区域、门店、日期归属 |
 | daily | `daily.ts` | `/daily` 总数据、平台卡片、数据覆盖说明 |
 | monitor | `monitor.ts` | Excel 可支撑的异常规则 |
 | users | `users.ts` | 只输出弱口径用户信号，不计算用户级留存/流失 |
